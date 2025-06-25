@@ -1,8 +1,13 @@
+"use client";
 import Image from "next/image";
 import imgSrc from "../../../public/Gradient.png";
 import { LoginForm } from "@/components/login-form";
+import { useSearchParams } from "next/navigation";
 
 export default function Page() {
+  const query = useSearchParams();
+  const register = query.get("register") === "true";
+
   return (
     <div className="flex h-screen items-center justify-center">
       <div className="z-0 w-1/2 relative">
@@ -18,7 +23,7 @@ export default function Page() {
       </div>
       <div className="w-1/2">
         <div className="flex h-full items-center justify-center bg-gradient-to-b from-white/60 to-white/10 backdrop-blur-sm">
-          <LoginForm />
+          <LoginForm register={register} />
         </div>
       </div>
     </div>

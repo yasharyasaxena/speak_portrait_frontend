@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { HiEye, HiEyeOff, HiX } from "react-icons/hi";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,13 +23,19 @@ import {
 
 export function LoginForm({
   className,
+  register = false,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & { register?: boolean }) {
   const router = useRouter();
-  const [login, setLogin] = React.useState<boolean>(true);
+  const [login, setLogin] = React.useState<boolean>(!register);
   const [showPassword, setShowPassword] = React.useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     React.useState<boolean>(false);
+
+  // Update login state when register prop changes
+  useEffect(() => {
+    setLogin(!register);
+  }, [register]);
 
   return (
     <div className={cn("flex flex-col gap-4", className)} {...props}>

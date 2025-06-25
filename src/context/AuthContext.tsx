@@ -6,6 +6,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 interface AuthProviderProps {
@@ -15,6 +16,7 @@ interface AuthProviderProps {
 export const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   isAuthenticated: false,
+  loading: true,
 });
 
 export function useAuth() {
@@ -28,9 +30,10 @@ export function useAuth() {
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUser(user);
         setIsAuthenticated(true);
@@ -38,11 +41,21 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         setCurrentUser(null);
         setIsAuthenticated(false);
       }
+      setLoading(false);
     });
+
+    return () => unsubscribe();
   }, []);
+
+  const value = {
+    currentUser,
+    isAuthenticated,
+    loading,
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, isAuthenticated }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {!loading ? children : null}
     </AuthContext.Provider>
   );
 }
