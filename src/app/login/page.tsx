@@ -3,10 +3,26 @@ import Image from "next/image";
 import imgSrc from "../../../public/Gradient.png";
 import { LoginForm } from "@/components/login-form";
 import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import Loading from "../loading";
 
 export default function Page() {
+  const { currentUser, isAuthenticated, loading } = useAuth();
   const query = useSearchParams();
   const register = query.get("register") === "true";
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, router]);
+
+  if (loading || isAuthenticated) {
+    return <Loading />;
+  }
 
   return (
     <div className="flex h-screen items-center justify-center">
