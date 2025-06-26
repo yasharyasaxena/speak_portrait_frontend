@@ -20,7 +20,7 @@ export default function Page() {
           upload a portrait and your audio—watch as AI creates
           professional-quality speaking videos instantly.
         </p>
-        <Link href="/dashboard">
+        <Link href="/user/dashboard">
           <button className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition duration-300 hover:cursor-pointer">
             Get Started
           </button>

@@ -11,8 +11,8 @@ export default function Navbar() {
 
   const items = [
     { name: "Home", href: "/" },
-    { name: "About", href: "/about" },
-    { name: "Contact", href: "/contact" },
+    { name: "About", href: "#about" },
+    { name: "Contact", href: "#contact" },
   ];
 
   return (
@@ -42,12 +42,14 @@ export default function Navbar() {
             </Button>
           ) : currentUser ? (
             <>
-              <Button
-                variant="outline"
-                className="text-gray-700 hover:text-gray-900 transition-colors hover:cursor-pointer"
-              >
-                {currentUser.displayName || "Profile"}
-              </Button>
+              <Link href="/user">
+                <Button
+                  variant="outline"
+                  className="text-gray-700 hover:text-gray-900 transition-colors hover:cursor-pointer"
+                >
+                  {currentUser.displayName || "Profile"}
+                </Button>
+              </Link>
               <Button
                 variant="destructive"
                 className="hover:cursor-pointer"

@@ -32,7 +32,6 @@ export function LoginForm({
   const [showConfirmPassword, setShowConfirmPassword] =
     React.useState<boolean>(false);
 
-  // Update login state when register prop changes
   useEffect(() => {
     setLogin(!register);
   }, [register]);

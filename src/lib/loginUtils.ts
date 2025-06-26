@@ -4,7 +4,7 @@ import { signInUsingGithub, signInUsingGoogle, loginUsingEmail, registerUsingEma
 export function handleLoginUsingGithub(router: ReturnType<typeof useRouter>) {
   signInUsingGithub()
     .then(() => {
-      router.push("/dashboard?login=success");
+      router.push("/user/dashboard?login=success");
     })
     .catch((error) => {
       console.error("Error logging in with GitHub:", error);
@@ -14,7 +14,7 @@ export function handleLoginUsingGithub(router: ReturnType<typeof useRouter>) {
 export function handleLoginUsingGoogle(router: ReturnType<typeof useRouter>) {
   signInUsingGoogle()
     .then(() => {
-      router.push("/dashboard?login=success");
+      router.push("/user/dashboard?login=success");
     })
     .catch((error) => {
       console.error("Error logging in with Google:", error);
@@ -37,7 +37,7 @@ export async function handleSubmit(
             values.email,
             values.password
         );
-        router.push("/dashboard?login=success");
+        router.push("/user/dashboard?login=success");
     }
     } catch (error) {
     console.error(error);

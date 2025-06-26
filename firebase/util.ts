@@ -8,6 +8,13 @@ import {
     GithubAuthProvider 
 } from 'firebase/auth';
 
+const handleAuthError = (error: any) => {
+  if (error.code === 'auth/account-exists-with-different-credential') {
+    const email = error.customData?.email;
+    alert(`An account with email ${email} already exists. Please sign in with your original method first, then link your accounts in settings.`);
+  }
+};
+
 export const registerUsingEmail  = async (username: string, email: string, password: string) => {
     try{
         const creds = await createUserWithEmailAndPassword(auth, email, password);
@@ -53,10 +60,12 @@ export const signInUsingGoogle = async () => {
         }
         return result.user;
     } catch (error) {
+        handleAuthError(error);
         console.error("Error registering with Google:", error);
         throw error;
     }
 }
+
 
 export const signInUsingGithub = async () => {
     try {
@@ -67,6 +76,7 @@ export const signInUsingGithub = async () => {
         }
         return result.user;
     } catch (error) {
+        handleAuthError(error);
         console.error("Error registering with GitHub:", error);
         throw error;
     }
