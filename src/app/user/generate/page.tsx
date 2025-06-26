@@ -2,8 +2,12 @@
 import { Button } from "@/components/ui/button";
 import { CiImageOn } from "react-icons/ci";
 import { LuAudioLines } from "react-icons/lu";
-import { useState } from "react";
+import { IoClose } from "react-icons/io5";
+import { IoMdDocument } from "react-icons/io";
+import { useState, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
+import { useWavesurfer } from "@wavesurfer/react";
+import Timeline from "wavesurfer.js/dist/plugins/timeline.esm.js";
 
 type AudioInput = "File" | "TTS" | "Record";
 
@@ -21,9 +25,48 @@ const handleImagePreview = (
   reader.readAsDataURL(file);
 };
 
+const handleAudioPreview = (
+  file: File,
+  setPreviewUrl: (url: string) => void
+) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    if (e.target && e.target.result) {
+      console.log("Audio preview URL:", e.target.result);
+      setPreviewUrl(e.target.result as string);
+    }
+  };
+  reader.readAsDataURL(file);
+};
+
 export default function GeneratePage() {
   const [audio, setAudio] = useState<AudioInput>("File");
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  const containerRef = useRef(null);
+
+  const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
+    container: containerRef,
+    height: 100,
+    waveColor: "rgb(200, 0, 200)",
+    progressColor: "rgb(100, 0, 100)",
+    url: audioPreviewUrl ? audioPreviewUrl : undefined,
+    plugins: useMemo(() => [Timeline.create()], []),
+  });
+
+  const onPlayPause = useCallback(() => {
+    wavesurfer && wavesurfer.playPause();
+  }, [wavesurfer]);
+
+  const handleAudioReset = () => {
+    setAudioPreviewUrl(null);
+    setAudioFileName(null);
+    const fileInput = document.getElementById(
+      "audio-upload"
+    ) as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
+  };
 
   return (
     <div>
@@ -115,10 +158,30 @@ export default function GeneratePage() {
             <div className="flex flex-col space-y-4">
               <label
                 htmlFor="audio-upload"
-                className="flex flex-col items-center justify-center h-32 cursor-pointer bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200"
+                className="flex flex-col items-center justify-center h-32 cursor-pointer bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200 relative"
               >
-                <LuAudioLines className="text-6xl text-gray-500 mb-2" />
-                <span className="text-gray-500">Upload an Audio File</span>
+                {audioPreviewUrl ? (
+                  <div className="flex items-center space-x-2">
+                    <IoMdDocument className="text-4xl text-gray-500" />
+                    <span className="text-gray-700 font-medium">
+                      {audioFileName}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleAudioReset();
+                      }}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-gray-300 hover:bg-gray-400 transition-colors"
+                    >
+                      <IoClose className="text-gray-700" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <LuAudioLines className="text-6xl text-gray-500 mb-2" />
+                    <span className="text-gray-500">Upload an Audio File</span>
+                  </>
+                )}
               </label>
               <input
                 id="audio-upload"
@@ -128,13 +191,34 @@ export default function GeneratePage() {
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
-                    console.log("Audio file selected:", file.name);
+                    handleAudioPreview(file, setAudioPreviewUrl);
+                    setAudioFileName(file.name);
                   }
                 }}
               />
               <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
                 Upload Audio
               </button>
+              {audioPreviewUrl && (
+                <div className="flex flex-col space-y-2">
+                  <div className="relative">
+                    <div
+                      ref={containerRef}
+                      className="w-full h-24 bg-gray-100 rounded"
+                    ></div>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
+                    <span>{isPlaying ? "Playing" : "Paused"}</span>
+                    <span>{currentTime.toFixed(2)}s</span>
+                  </div>
+                  <button
+                    onClick={onPlayPause}
+                    className="self-center flex bg-white p-1 rounded shadow hover:bg-gray-200 mt-2"
+                  >
+                    {isPlaying ? "Pause" : "Play"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className={audio === "TTS" ? "block" : "hidden"}>
