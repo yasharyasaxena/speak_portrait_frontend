@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { IoIosArrowBack, IoIosArrowDown } from "react-icons/io";
+import { IoIosArrowDown } from "react-icons/io";
 
 export default function Sidebar({ videos }: { videos: string[] }) {
   const [open, setOpen] = useState(false);
@@ -17,6 +17,14 @@ export default function Sidebar({ videos }: { videos: string[] }) {
               className="block px-4 py-2 hover:bg-gray-700 rounded"
             >
               Dashboard
+            </a>
+          </li>
+          <li>
+            <a
+              href="/user/generate"
+              className="block px-4 py-2 hover:bg-gray-700 rounded"
+            >
+              Generate AI Portrait
             </a>
           </li>
           <li>
