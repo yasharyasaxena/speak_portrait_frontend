@@ -8,6 +8,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useWavesurfer } from "@wavesurfer/react";
 import Timeline from "wavesurfer.js/dist/plugins/timeline.esm.js";
+import { useAuth } from "@/context/AuthContext";
 
 type AudioInput = "File" | "TTS" | "Record";
 
@@ -39,12 +40,65 @@ const handleAudioPreview = (
   reader.readAsDataURL(file);
 };
 
+const handleImageUpload = async (file: File, userId: string, jobId: string) => {
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("userId", userId);
+  formData.append("jobId", jobId);
+
+  try {
+    const response = await fetch("/api/upload/image", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Image upload failed");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    throw error;
+  }
+};
+
+const handleAudioUpload = async (file: File, userId: string, jobId: string) => {
+  const formData = new FormData();
+  formData.append("audio", file);
+  formData.append("userId", userId);
+  formData.append("jobId", jobId);
+
+  try {
+    const response = await fetch("/api/upload/audio", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Audio upload failed");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error uploading audio:", error);
+    throw error;
+  }
+};
+
 export default function GeneratePage() {
   const [audio, setAudio] = useState<AudioInput>("File");
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const containerRef = useRef(null);
+  const { currentUser, isAuthenticated, loading } = useAuth();
+
+  const jobId = `${currentUser?.uid}-${Date.now()}`;
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     container: containerRef,
@@ -62,6 +116,7 @@ export default function GeneratePage() {
   const handleAudioReset = () => {
     setAudioPreviewUrl(null);
     setAudioFileName(null);
+    setAudioFile(null);
     const fileInput = document.getElementById(
       "audio-upload"
     ) as HTMLInputElement;
@@ -116,13 +171,30 @@ export default function GeneratePage() {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
                     handleImagePreview(file, setImagePreviewUrl);
+                    setImageFile(file);
                   }
                 }}
               />
             </div>
             <button
               className="bg-blue-500 text-white px-4 py-2 rounded
-            hover:bg-blue-600"
+            hover:bg-blue-600 hover:opacity-90 transition-opacity hover:cursor-pointer"
+              onClick={async () => {
+                if (imageFile) {
+                  try {
+                    const response = await handleImageUpload(
+                      imageFile,
+                      currentUser!.uid,
+                      jobId
+                    );
+                    console.log("Image uploaded successfully:", response);
+                  } catch (error) {
+                    console.error("Error uploading image:", error);
+                  }
+                } else {
+                  alert("Please select an image to upload.");
+                }
+              }}
             >
               Upload Image
             </button>
@@ -171,7 +243,7 @@ export default function GeneratePage() {
                         e.preventDefault();
                         handleAudioReset();
                       }}
-                      className="absolute top-2 right-2 p-1 rounded-full bg-gray-300 hover:bg-gray-400 transition-colors"
+                      className="absolute top-2 right-2 p-1 rounded-full bg-gray-300 hover:bg-gray-400 transition-colors hover:cursor-pointer"
                     >
                       <IoClose className="text-gray-700" />
                     </button>
@@ -193,10 +265,29 @@ export default function GeneratePage() {
                     const file = e.target.files[0];
                     handleAudioPreview(file, setAudioPreviewUrl);
                     setAudioFileName(file.name);
+                    setAudioFile(file);
                   }
                 }}
               />
-              <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              <button
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:opacity-90 transition-opacity hover:cursor-pointer"
+                onClick={async () => {
+                  if (audioFile) {
+                    try {
+                      const response = await handleAudioUpload(
+                        audioFile,
+                        currentUser!.uid,
+                        jobId
+                      );
+                      console.log("Audio uploaded successfully:", response);
+                    } catch (error) {
+                      console.error("Error uploading audio:", error);
+                    }
+                  } else {
+                    alert("Please select an audio file to upload.");
+                  }
+                }}
+              >
                 Upload Audio
               </button>
               {audioPreviewUrl && (
@@ -213,7 +304,7 @@ export default function GeneratePage() {
                   </div>
                   <button
                     onClick={onPlayPause}
-                    className="self-center flex bg-white p-1 rounded shadow hover:bg-gray-200 mt-2"
+                    className="self-center flex bg-white p-1 rounded shadow hover:bg-gray-200 mt-2 hover:cursor-pointer"
                   >
                     {isPlaying ? "Pause" : "Play"}
                   </button>
@@ -227,7 +318,7 @@ export default function GeneratePage() {
               placeholder="Enter your sentence here"
               className="w-full p-2 border border-gray-300 rounded mb-4"
             />
-            <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:opacity-90 transition-opacity hover:cursor-pointer">
               Generate Audio
             </button>
           </div>
