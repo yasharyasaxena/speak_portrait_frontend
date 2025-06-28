@@ -30,7 +30,7 @@ export async function handleSubmit(
     try {
         if (login) {
             await loginUsingEmail(values.email, values.password);
-            router.push("/dashboard?login=success");
+            router.push("/user/dashboard?login=success");
         } else {
             await registerUsingEmail(
             values.username,

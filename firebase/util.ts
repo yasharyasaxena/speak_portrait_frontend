@@ -8,6 +8,8 @@ import {
     GithubAuthProvider 
 } from 'firebase/auth';
 
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
 const handleAuthError = (error: any) => {
   if (error.code === 'auth/account-exists-with-different-credential') {
     const email = error.customData?.email;
@@ -22,6 +24,8 @@ export const registerUsingEmail  = async (username: string, email: string, passw
         await updateProfile(user, {
             displayName: username,
         });
+        const token = await user.getIdToken();
+        await syncWithBackend(user.uid, token);
         return user;
     } catch (error) {
         console.error("Error registering user:", error);
@@ -35,6 +39,8 @@ export const loginUsingEmail = async (email: string, password: string) => {
         if (!creds.user) {
             throw new Error("User not found");
         }
+        const token = await creds.user.getIdToken();
+        await syncWithBackend(creds.user.uid, token);
         return creds.user;
     } catch (error) {
         console.error("Error logging in user:", error);
@@ -58,6 +64,8 @@ export const signInUsingGoogle = async () => {
         if (!result.user) {
             throw new Error("User not found after Google sign-in");
         }
+        const token = await result.user.getIdToken();
+        await syncWithBackend(result.user.uid, token);
         return result.user;
     } catch (error) {
         handleAuthError(error);
@@ -74,10 +82,35 @@ export const signInUsingGithub = async () => {
         if (!result.user) {
             throw new Error("User not found after GitHub sign-in");
         }
+        const token = await result.user.getIdToken();
+        await syncWithBackend(result.user.uid, token);
         return result.user;
     } catch (error) {
         handleAuthError(error);
         console.error("Error registering with GitHub:", error);
+        throw error;
+    }
+}
+
+export const syncWithBackend = async (uid:string, token:string) => {
+    try {
+        const response = await fetch(`${backendUrl}/api/auth/sync`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ uid })
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to sync with backend");
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error syncing with backend:", error);
         throw error;
     }
 }
