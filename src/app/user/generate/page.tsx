@@ -13,13 +13,105 @@ import Loading from "@/app/loading";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 
-const ngrok_url =
-  process.env.NEXT_PUBLIC_NGROK_URL || "http://localhost:3000/api";
+const ngrokUrl = process.env.NEXT_PUBLIC_NGROK_URL;
 
 const backendUrl =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 type AudioInput = "File" | "TTS" | "Record";
+
+const handleOnTTSWebSocket = async ({
+  text,
+  speed,
+  language,
+  pitch,
+  emotion,
+  onStatusUpdate,
+}: {
+  text: string;
+  speed: number;
+  language: string;
+  pitch: number;
+  emotion: {
+    happiness: number;
+    sadness: number;
+    disgust: number;
+    fear: number;
+    surprise: number;
+    anger: number;
+    other: number;
+    neutral: number;
+  };
+  onStatusUpdate: (data: any) => void;
+}) => {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`wss://${ngrokUrl}/ws/tts`);
+    let isCompleted = false;
+
+    // Set a longer timeout for the WebSocket connection
+    const connectionTimeout = setTimeout(() => {
+      if (!isCompleted) {
+        ws.close();
+        reject(new Error("WebSocket connection timeout"));
+      }
+    }, 60000); // 60 seconds timeout
+
+    ws.onopen = () => {
+      console.log("WebSocket connection opened");
+      const emotionValues: number[] = Object.values(emotion);
+      const request = {
+        text: text.toString(),
+        speed: Math.floor(speed),
+        language: language.toString(),
+        pitch: Math.floor(pitch),
+        emotion: emotionValues.map((val) => Number(val.toFixed(6))),
+      };
+      console.log(
+        "Sending WebSocket TTS request:",
+        JSON.stringify(request, null, 2)
+      );
+      ws.send(JSON.stringify(request));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log("WebSocket message received:", data);
+      onStatusUpdate(data);
+
+      if (data.status === "completed") {
+        isCompleted = true;
+        clearTimeout(connectionTimeout);
+        resolve(data);
+        // Don't close immediately, let it close naturally
+        setTimeout(() => ws.close(), 1000);
+      } else if (data.status === "error") {
+        isCompleted = true;
+        clearTimeout(connectionTimeout);
+        reject(new Error(data.message || "TTS generation failed"));
+        ws.close();
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      isCompleted = true;
+      clearTimeout(connectionTimeout);
+      reject(new Error("WebSocket connection failed"));
+    };
+
+    ws.onclose = (event) => {
+      console.log("WebSocket closed:", event.code, event.reason);
+      clearTimeout(connectionTimeout);
+      if (!isCompleted && event.code !== 1000) {
+        reject(
+          new Error(
+            `WebSocket connection closed unexpectedly: ${event.code} ${event.reason}`
+          )
+        );
+      }
+    };
+  });
+};
 
 const handleOnTTS = async ({
   text,
@@ -44,18 +136,21 @@ const handleOnTTS = async ({
   };
 }) => {
   const emotionValues: number[] = Object.values(emotion);
-  const response = await fetch(`${ngrok_url}/tts`, {
+  const request = {
+    text: text.toString(),
+    speed: Math.floor(speed),
+    language: language.toString(),
+    pitch: Math.floor(pitch),
+    emotion: emotionValues.map((val) => Number(val.toFixed(6))),
+  };
+  console.log("Sending HTTP TTS request:", JSON.stringify(request, null, 2));
+
+  const response = await fetch(`${ngrokUrl}/tts`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      text,
-      speed,
-      language,
-      pitch,
-      emotion: emotionValues,
-    }),
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {
@@ -163,9 +258,15 @@ export default function GeneratePage() {
   const [audioFileName, setAudioFileName] = useState<string | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const containerRef = useRef(null);
+  const uploadContainerRef = useRef(null);
+  const ttsContainerRef = useRef(null);
   const { currentUser, isAuthenticated, loading } = useAuth();
   const [jobId, setJobId] = useState<string | undefined>(undefined);
+
+  const [ttsStatus, setTtsStatus] = useState<string>("idle");
+  const [ttsMessage, setTtsMessage] = useState<string>("");
+  const [processingTime, setProcessingTime] = useState<any>(null);
+  const [useWebSocket, setUseWebSocket] = useState<boolean>(true);
 
   const [ttsConfig, setTtsConfig] = useState({
     text: "",
@@ -191,29 +292,83 @@ export default function GeneratePage() {
       </div>
     );
 
-  const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
-    container: containerRef,
-    height: 100,
-    waveColor: "rgb(200, 0, 200)",
-    progressColor: "rgb(100, 0, 100)",
-    url: audioPreviewUrl ? audioPreviewUrl : undefined,
+  const {
+    wavesurfer: uploadWavesurfer,
+    isPlaying: uploadIsPlaying,
+    currentTime: uploadCurrentTime,
+  } = useWavesurfer({
+    container: uploadContainerRef,
+    height: 80,
+    waveColor: "#3b82f6",
+    progressColor: "#1d4ed8",
+    url: audioPreviewUrl && audioFile ? audioPreviewUrl : undefined,
     plugins: useMemo(() => [Timeline.create()], []),
   });
 
-  const onPlayPause = useCallback(() => {
-    wavesurfer && wavesurfer.playPause();
-  }, [wavesurfer]);
+  const {
+    wavesurfer: ttsWavesurfer,
+    isPlaying: ttsIsPlaying,
+    currentTime: ttsCurrentTime,
+  } = useWavesurfer({
+    container: ttsContainerRef,
+    height: 80,
+    waveColor: "#10b981",
+    progressColor: "#059669",
+    url: audioPreviewUrl && !audioFile ? audioPreviewUrl : undefined,
+    plugins: useMemo(() => [Timeline.create()], []),
+  });
+
+  const onUploadPlayPause = useCallback(() => {
+    uploadWavesurfer && uploadWavesurfer.playPause();
+  }, [uploadWavesurfer]);
+
+  const onTtsPlayPause = useCallback(() => {
+    ttsWavesurfer && ttsWavesurfer.playPause();
+  }, [ttsWavesurfer]);
 
   const handleAudioReset = () => {
     setAudioPreviewUrl(null);
     setAudioFileName(null);
     setAudioFile(null);
+    setProcessingTime(null);
+    setTtsStatus("idle");
+    setTtsMessage("");
     const fileInput = document.getElementById(
       "audio-upload"
     ) as HTMLInputElement;
     if (fileInput) fileInput.value = "";
   };
 
+  const handleTTSStatusUpdate = (data: any) => {
+    setTtsStatus(data.status);
+    setTtsMessage(data.message || "");
+
+    if (data.processingTime) {
+      setProcessingTime(data.processingTime);
+    }
+    if (data.generationTime) {
+      setProcessingTime((prev: any) => ({
+        ...prev,
+        generation: data.generationTime,
+      }));
+    }
+  };
+
+  const getTTSStatusIcon = () => {
+    switch (ttsStatus) {
+      case "processing":
+      case "generating":
+        return "🎤";
+      case "uploading":
+        return "📤";
+      case "completed":
+        return "✅";
+      case "error":
+        return "❌";
+      default:
+        return "⏳";
+    }
+  };
   return (
     <div>
       <div>
@@ -389,29 +544,43 @@ export default function GeneratePage() {
               >
                 Upload Audio
               </button>
-              {audioPreviewUrl && (
+              {audioPreviewUrl && audioFile && (
                 <div className="flex flex-col space-y-2">
                   <div className="relative">
                     <div
-                      ref={containerRef}
+                      ref={uploadContainerRef}
                       className="w-full h-24 bg-gray-100 rounded"
                     ></div>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
-                    <span>{isPlaying ? "Playing" : "Paused"}</span>
-                    <span>{currentTime.toFixed(2)}s</span>
+                    <span>{uploadIsPlaying ? "Playing" : "Paused"}</span>
+                    <span>{uploadCurrentTime.toFixed(2)}s</span>
                   </div>
                   <button
-                    onClick={onPlayPause}
+                    onClick={onUploadPlayPause}
                     className="self-center flex bg-white p-1 rounded shadow hover:bg-gray-200 mt-2 hover:cursor-pointer"
                   >
-                    {isPlaying ? "Pause" : "Play"}
+                    {uploadIsPlaying ? "Pause" : "Play"}
                   </button>
                 </div>
               )}
             </div>
           </div>
           <div className={audio === "TTS" ? "block" : "hidden"}>
+            <div className="flex items-center justify-between mb-4 p-2 bg-gray-50 rounded">
+              <span className="text-sm text-gray-600">
+                Real-time Processing
+              </span>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={useWebSocket}
+                  onChange={(e) => setUseWebSocket(e.target.checked)}
+                  className="mr-2"
+                />
+                <span className="text-xs">Enable WebSocket</span>
+              </label>
+            </div>
             <input
               type="text"
               placeholder="Enter your sentence here"
@@ -421,6 +590,47 @@ export default function GeneratePage() {
               }
               className="w-full p-2 border border-gray-300 rounded mb-4"
             />
+            {useWebSocket && ttsStatus !== "idle" && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{getTTSStatusIcon()}</span>
+                  <span className="font-medium text-blue-800 capitalize">
+                    {ttsStatus}
+                  </span>
+                </div>
+                {ttsMessage && (
+                  <p className="text-sm text-blue-600 mb-2">{ttsMessage}</p>
+                )}
+                {processingTime && (
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    {processingTime.generation && (
+                      <div className="text-center">
+                        <div className="font-bold text-blue-600">
+                          {processingTime.generation.toFixed(2)}s
+                        </div>
+                        <div className="text-gray-600">Generation</div>
+                      </div>
+                    )}
+                    {processingTime.upload && (
+                      <div className="text-center">
+                        <div className="font-bold text-yellow-600">
+                          {processingTime.upload.toFixed(2)}s
+                        </div>
+                        <div className="text-gray-600">Upload</div>
+                      </div>
+                    )}
+                    {processingTime.total && (
+                      <div className="text-center">
+                        <div className="font-bold text-green-600">
+                          {processingTime.total.toFixed(2)}s
+                        </div>
+                        <div className="text-gray-600">Total</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex flex-col space-y-4">
               <Label
                 htmlFor="speed-slider"
@@ -517,20 +727,63 @@ export default function GeneratePage() {
             </div>
             <div className="flex justify-between items-center mt-4">
               <button
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:opacity-90 transition-opacity hover:cursor-pointer"
+                className={`px-4 py-2 rounded transition-opacity ${
+                  ttsStatus === "idle"
+                    ? "bg-blue-500 hover:bg-blue-600 text-white hover:cursor-pointer"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+                disabled={ttsStatus !== "idle"}
                 onClick={async () => {
                   try {
-                    const ttsResponse = await handleOnTTS(ttsConfig);
-                    setAudioPreviewUrl(ttsResponse.audioUrl);
-                    setAudioFileName("Generated Audio");
-                    setAudioFile(null);
-                    console.log("TTS generated successfully:", ttsResponse);
+                    setProcessingTime(null);
+                    setTtsStatus("processing");
+                    setTtsMessage("Starting TTS generation...");
+
+                    if (useWebSocket) {
+                      const ttsResponse = await handleOnTTSWebSocket({
+                        ...ttsConfig,
+                        onStatusUpdate: handleTTSStatusUpdate,
+                      });
+                      const typedTtsResponse = ttsResponse as {
+                        audioUrl: string;
+                      };
+                      setAudioPreviewUrl(typedTtsResponse.audioUrl);
+                      setAudioFileName("Generated Audio");
+                      setAudioFile(null);
+                      console.log(
+                        "TTS generated successfully:",
+                        typedTtsResponse
+                      );
+                    } else {
+                      const ttsResponse = await handleOnTTS(ttsConfig);
+                      setAudioPreviewUrl(ttsResponse.audioUrl);
+                      setAudioFileName("Generated Audio");
+                      setAudioFile(null);
+                      setTtsStatus("completed");
+                      setTtsMessage("TTS generation completed");
+                      if (ttsResponse.processingTime) {
+                        setProcessingTime({
+                          total: ttsResponse.processingTime,
+                        });
+                      }
+                      console.log("TTS generated successfully:", ttsResponse);
+                    }
                   } catch (error) {
+                    setTtsStatus("error");
+                    setTtsMessage("TTS generation failed");
                     console.error("Error generating TTS:", error);
                   }
                 }}
               >
-                Generate Audio
+                {ttsStatus === "idle"
+                  ? "Generate Audio"
+                  : ttsStatus === "processing"
+                  ? "Starting..."
+                  : ttsStatus === "generating"
+                  ? "Generating..."
+                  : ttsStatus === "uploading"
+                  ? "Uploading..."
+                  : "Generate Audio"}
               </button>
               <button
                 className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 hover:opacity-90 transition-opacity hover:cursor-pointer mt-2"
@@ -538,7 +791,7 @@ export default function GeneratePage() {
                   setTtsConfig({
                     text: "",
                     speed: 15.0,
-                    language: "en-US",
+                    language: "en-us",
                     pitch: 20.0,
                     emotion: {
                       happiness: 0.3077,
@@ -551,28 +804,31 @@ export default function GeneratePage() {
                       neutral: 0.3077,
                     },
                   });
+                  setProcessingTime(null);
+                  setTtsStatus("idle");
+                  setTtsMessage("");
                 }}
               >
                 Reset TTS Config
               </button>
             </div>
-            {audioPreviewUrl && (
+            {audioPreviewUrl && !audioFile && (
               <div className="flex flex-col space-y-2">
                 <div className="relative">
                   <div
-                    ref={containerRef}
+                    ref={ttsContainerRef}
                     className="w-full h-24 bg-gray-100 rounded"
                   ></div>
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
-                  <span>{isPlaying ? "Playing" : "Paused"}</span>
-                  <span>{currentTime.toFixed(2)}s</span>
+                  <span>{ttsIsPlaying ? "Playing" : "Paused"}</span>
+                  <span>{ttsCurrentTime.toFixed(2)}s</span>
                 </div>
                 <button
-                  onClick={onPlayPause}
+                  onClick={onTtsPlayPause}
                   className="self-center flex bg-white p-1 rounded shadow hover:bg-gray-200 mt-2 hover:cursor-pointer"
                 >
-                  {isPlaying ? "Pause" : "Play"}
+                  {ttsIsPlaying ? "Pause" : "Play"}
                 </button>
               </div>
             )}

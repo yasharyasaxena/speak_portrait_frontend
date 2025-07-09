@@ -38,7 +38,7 @@ export default function Page() {
         <Image src={imgSrc} alt="" className="bg-[#050A24] h-screen" />
       </div>
       <div className="w-1/2">
-        <div className="flex h-full items-center justify-center bg-gradient-to-b from-white/60 to-white/10 backdrop-blur-sm">
+        <div className="flex h-full items-center justify-center">
           <LoginForm register={register} />
         </div>
       </div>

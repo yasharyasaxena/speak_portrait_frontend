@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { IoIosArrowDown } from "react-icons/io";
 
@@ -12,26 +13,26 @@ export default function Sidebar({ videos }: { videos: string[] }) {
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
           <li>
-            <a
+            <Link
               href="/user/dashboard"
               className="block px-4 py-2 hover:bg-gray-700 rounded"
             >
               Dashboard
-            </a>
+            </Link>
           </li>
           <li>
-            <a
+            <Link
               href="/user/generate"
               className="block px-4 py-2 hover:bg-gray-700 rounded"
             >
               Generate AI Portrait
-            </a>
+            </Link>
           </li>
           <li>
             <ul className="space-y-2 mt-2">
               <li>
-                <a
-                  className="flex items-center justify-between px-4 py-2 hover:bg-gray-700 rounded hover:cursor-pointer transition-colors duration-200"
+                <button
+                  className="flex w-full items-center justify-between px-4 py-2 hover:bg-gray-700 rounded hover:cursor-pointer transition-colors duration-200"
                   onClick={() => setOpen((prev) => !prev)}
                 >
                   Gallery
@@ -42,7 +43,7 @@ export default function Sidebar({ videos }: { videos: string[] }) {
                   >
                     <IoIosArrowDown />
                   </div>
-                </a>
+                </button>
               </li>
               <div
                 className={`overflow-hidden transition-all duration-300 ease-in-out ${
@@ -52,23 +53,23 @@ export default function Sidebar({ videos }: { videos: string[] }) {
                 <ul className="pl-4 space-y-1 relative">
                   <div className="absolute left-0 w-px h-full bg-gray-600 ml-2"></div>
                   <li>
-                    <a
+                    <Link
                       href="/user/gallery"
                       className="block px-4 py-2 hover:bg-gray-700 rounded transition-colors duration-200 relative"
                     >
                       <div className="absolute -left-2 top-1/2 w-4 h-px bg-gray-600"></div>
                       All Videos
-                    </a>
+                    </Link>
                   </li>
                   {videos.map((video, index) => (
                     <li key={index}>
-                      <a
+                      <Link
                         href={`/user/gallery/${video}`}
                         className="block px-4 py-2 hover:bg-gray-700 rounded transition-colors duration-200 relative"
                       >
                         <div className="absolute -left-2 top-1/2 w-4 h-px bg-gray-600"></div>
                         {video}
-                      </a>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -76,20 +77,20 @@ export default function Sidebar({ videos }: { videos: string[] }) {
             </ul>
           </li>
           <li>
-            <a
+            <Link
               href="/user/settings"
               className="block px-4 py-2 hover:bg-gray-700 rounded"
             >
               Settings
-            </a>
+            </Link>
           </li>
           <li>
-            <a
+            <Link
               href="/user/help"
               className="block px-4 py-2 hover:bg-gray-700 rounded"
             >
               Help
-            </a>
+            </Link>
           </li>
         </ul>
       </nav>
