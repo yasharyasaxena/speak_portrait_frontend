@@ -12,278 +12,33 @@ import { useAuth } from "@/context/AuthContext";
 import Loading from "@/app/loading";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-
-const ngrokUrl = process.env.NEXT_PUBLIC_NGROK_URL;
-
-const backendUrl =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-
-type AudioInput = "File" | "TTS" | "Record";
-
-const handleOnTTSWebSocket = async ({
-  text,
-  speed,
-  language,
-  pitch,
-  emotion,
-  onStatusUpdate,
-}: {
-  text: string;
-  speed: number;
-  language: string;
-  pitch: number;
-  emotion: {
-    happiness: number;
-    sadness: number;
-    disgust: number;
-    fear: number;
-    surprise: number;
-    anger: number;
-    other: number;
-    neutral: number;
-  };
-  onStatusUpdate: (data: any) => void;
-}) => {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`wss://${ngrokUrl}/ws/tts`);
-    let isCompleted = false;
-
-    // Set a longer timeout for the WebSocket connection
-    const connectionTimeout = setTimeout(() => {
-      if (!isCompleted) {
-        ws.close();
-        reject(new Error("WebSocket connection timeout"));
-      }
-    }, 60000); // 60 seconds timeout
-
-    ws.onopen = () => {
-      console.log("WebSocket connection opened");
-      const emotionValues: number[] = Object.values(emotion);
-      const request = {
-        text: text.toString(),
-        speed: Math.floor(speed),
-        language: language.toString(),
-        pitch: Math.floor(pitch),
-        emotion: emotionValues.map((val) => Number(val.toFixed(6))),
-      };
-      console.log(
-        "Sending WebSocket TTS request:",
-        JSON.stringify(request, null, 2)
-      );
-      ws.send(JSON.stringify(request));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log("WebSocket message received:", data);
-      onStatusUpdate(data);
-
-      if (data.status === "completed") {
-        isCompleted = true;
-        clearTimeout(connectionTimeout);
-        resolve(data);
-        // Don't close immediately, let it close naturally
-        setTimeout(() => ws.close(), 1000);
-      } else if (data.status === "error") {
-        isCompleted = true;
-        clearTimeout(connectionTimeout);
-        reject(new Error(data.message || "TTS generation failed"));
-        ws.close();
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      isCompleted = true;
-      clearTimeout(connectionTimeout);
-      reject(new Error("WebSocket connection failed"));
-    };
-
-    ws.onclose = (event) => {
-      console.log("WebSocket closed:", event.code, event.reason);
-      clearTimeout(connectionTimeout);
-      if (!isCompleted && event.code !== 1000) {
-        reject(
-          new Error(
-            `WebSocket connection closed unexpectedly: ${event.code} ${event.reason}`
-          )
-        );
-      }
-    };
-  });
-};
-
-const handleOnTTS = async ({
-  text,
-  speed,
-  language,
-  pitch,
-  emotion,
-}: {
-  text: string;
-  speed: number;
-  language: string;
-  pitch: number;
-  emotion: {
-    happiness: number;
-    sadness: number;
-    disgust: number;
-    fear: number;
-    surprise: number;
-    anger: number;
-    other: number;
-    neutral: number;
-  };
-}) => {
-  const emotionValues: number[] = Object.values(emotion);
-  const request = {
-    text: text.toString(),
-    speed: Math.floor(speed),
-    language: language.toString(),
-    pitch: Math.floor(pitch),
-    emotion: emotionValues.map((val) => Number(val.toFixed(6))),
-  };
-  console.log("Sending HTTP TTS request:", JSON.stringify(request, null, 2));
-
-  const response = await fetch(`${ngrokUrl}/tts`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    throw new Error("TTS request failed");
-  }
-
-  const data = await response.json();
-  return data;
-};
-
-const handleImagePreview = (
-  file: File,
-  setPreviewUrl: (url: string) => void
-) => {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (e.target && e.target.result) {
-      console.log("Image preview URL:", e.target.result);
-      setPreviewUrl(e.target.result as string);
-    }
-  };
-  reader.readAsDataURL(file);
-};
-
-const handleAudioPreview = (
-  file: File,
-  setPreviewUrl: (url: string) => void
-) => {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (e.target && e.target.result) {
-      console.log("Audio preview URL:", e.target.result);
-      setPreviewUrl(e.target.result as string);
-    }
-  };
-  reader.readAsDataURL(file);
-};
-
-const handleImageUpload = async (
-  file: File,
-  userId: string,
-  jobId?: string
-) => {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("userId", userId);
-  if (jobId) {
-    formData.append("jobId", jobId);
-  }
-
-  try {
-    const response = await fetch(`${backendUrl}/api/upload/image`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error("Image upload failed");
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Error uploading image:", error);
-    throw error;
-  }
-};
-
-const handleAudioUpload = async (
-  file: File,
-  userId: string,
-  jobId?: string
-) => {
-  const formData = new FormData();
-  formData.append("audio", file);
-  formData.append("userId", userId);
-  if (jobId) {
-    formData.append("jobId", jobId);
-  }
-
-  try {
-    const response = await fetch(`${backendUrl}/api/upload/audio`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error("Audio upload failed");
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Error uploading audio:", error);
-    throw error;
-  }
-};
+import { TTSOptions, AudioInput, ttsStatus } from "@/types/types";
+import { defaultTTSOptions, getTTSStatusIcon } from "@/lib/utils";
+import { handleSingleUpload, handleOnTTSWebSocket } from "@/lib/api";
 
 export default function GeneratePage() {
-  const [audio, setAudio] = useState<AudioInput>("File");
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  //User
+  const { currentUser, isAuthenticated, loading } = useAuth();
+  const [projectId, setProjectId] = useState<string>();
+  const uploadContainerRef = useRef(null);
+
+  //Image
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-  const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState<boolean>(false);
+
+  //Audio
+  const [audio, setAudio] = useState<AudioInput>("File");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const uploadContainerRef = useRef(null);
-  const ttsContainerRef = useRef(null);
-  const { currentUser, isAuthenticated, loading } = useAuth();
-  const [jobId, setJobId] = useState<string | undefined>(undefined);
+  const [audioUploading, setAudioUploading] = useState<boolean>(false);
 
-  const [ttsStatus, setTtsStatus] = useState<string>("idle");
+  //TTS
+  const ttsContainerRef = useRef(null);
+  const [ttsStatus, setTtsStatus] = useState<ttsStatus>("idle");
   const [ttsMessage, setTtsMessage] = useState<string>("");
   const [processingTime, setProcessingTime] = useState<any>(null);
-  const [useWebSocket, setUseWebSocket] = useState<boolean>(true);
-
-  const [ttsConfig, setTtsConfig] = useState({
-    text: "",
-    speed: 15.0,
-    language: "en-us",
-    pitch: 20.0,
-    emotion: {
-      happiness: 0.3077,
-      sadness: 0.0256,
-      disgust: 0.0256,
-      fear: 0.0256,
-      surprise: 0.0256,
-      anger: 0.0256,
-      other: 0.2564,
-      neutral: 0.3077,
-    },
-  });
+  const [ttsConfig, setTtsConfig] = useState<TTSOptions>(defaultTTSOptions);
 
   if (loading)
     return (
@@ -301,7 +56,7 @@ export default function GeneratePage() {
     height: 80,
     waveColor: "#3b82f6",
     progressColor: "#1d4ed8",
-    url: audioPreviewUrl && audioFile ? audioPreviewUrl : undefined,
+    url: audioUrl && audioFile ? audioUrl : undefined,
     plugins: useMemo(() => [Timeline.create()], []),
   });
 
@@ -314,7 +69,7 @@ export default function GeneratePage() {
     height: 80,
     waveColor: "#10b981",
     progressColor: "#059669",
-    url: audioPreviewUrl && !audioFile ? audioPreviewUrl : undefined,
+    url: audioUrl && !audioFile ? audioUrl : undefined,
     plugins: useMemo(() => [Timeline.create()], []),
   });
 
@@ -327,8 +82,7 @@ export default function GeneratePage() {
   }, [ttsWavesurfer]);
 
   const handleAudioReset = () => {
-    setAudioPreviewUrl(null);
-    setAudioFileName(null);
+    setAudioUrl(null);
     setAudioFile(null);
     setProcessingTime(null);
     setTtsStatus("idle");
@@ -354,21 +108,6 @@ export default function GeneratePage() {
     }
   };
 
-  const getTTSStatusIcon = () => {
-    switch (ttsStatus) {
-      case "processing":
-      case "generating":
-        return "🎤";
-      case "uploading":
-        return "📤";
-      case "completed":
-        return "✅";
-      case "error":
-        return "❌";
-      default:
-        return "⏳";
-    }
-  };
   return (
     <div>
       <div>
@@ -382,30 +121,56 @@ export default function GeneratePage() {
               <label
                 htmlFor="file-upload"
                 className={`flex flex-col items-center justify-center h-full cursor-pointer bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200 ${
-                  imagePreviewUrl ? "hidden" : "flex"
+                  imageUrl ? "hidden" : "flex"
                 }`}
               >
-                <CiImageOn className="text-6xl text-gray-500 mb-2" />
-                <span className="text-gray-500">
-                  Upload a Portrait by clicking here
-                </span>
+                {imageUploading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
+                    <span className="text-gray-500">Uploading image...</span>
+                  </div>
+                ) : (
+                  <>
+                    <CiImageOn className="text-6xl text-gray-500 mb-2" />
+                    <span className="text-gray-500">
+                      Upload a Portrait by clicking here
+                    </span>
+                  </>
+                )}
               </label>
-              {imagePreviewUrl && (
+              {imageUrl && (
                 <div
                   onClick={() =>
+                    !imageUploading &&
                     document.getElementById("file-upload")?.click()
                   }
-                  className="absolute inset-0 cursor-pointer hover:opacity-90 transition-opacity"
+                  className={`absolute inset-0 transition-opacity ${
+                    imageUploading
+                      ? "cursor-not-allowed"
+                      : "cursor-pointer hover:opacity-90"
+                  }`}
                 >
                   <Image
-                    src={imagePreviewUrl}
+                    src={imageUrl}
                     alt="Image Preview"
                     fill
                     className="object-contain rounded"
                   />
                   <div className="absolute inset-0 bg-black opacity-0 hover:opacity-30 transition-opacity flex items-center justify-center">
-                    <span className="text-white">Click to change image</span>
+                    <span className="text-white">
+                      {imageUploading
+                        ? "Uploading..."
+                        : "Click to change image"}
+                    </span>
                   </div>
+                  {imageUploading && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                        <span className="text-white">Uploading...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <input
@@ -413,41 +178,29 @@ export default function GeneratePage() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
+                disabled={imageUploading}
+                onChange={async (e) => {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
-                    handleImagePreview(file, setImagePreviewUrl);
-                    setImageFile(file);
+                    setImageUploading(true);
+                    try {
+                      const data = await handleSingleUpload(
+                        file,
+                        currentUser!,
+                        projectId ? projectId : undefined
+                      );
+                      setImageUrl(data.files[0].url);
+                      setImageFile(file);
+                      setProjectId(data.projectId);
+                    } catch (error) {
+                      console.error("Error uploading image:", error);
+                    } finally {
+                      setImageUploading(false);
+                    }
                   }
                 }}
               />
             </div>
-            <button
-              className="bg-blue-500 text-white px-4 py-2 rounded
-            hover:bg-blue-600 hover:opacity-90 transition-opacity hover:cursor-pointer"
-              onClick={async () => {
-                if (imageFile) {
-                  try {
-                    const response = await handleImageUpload(
-                      imageFile,
-                      currentUser!.uid,
-                      jobId
-                    );
-                    if (response.jobId) {
-                      setJobId(response.jobId);
-                    }
-                    setImageUrl(response.imageUrl);
-                    console.log("Image uploaded successfully:", response);
-                  } catch (error) {
-                    console.error("Error uploading image:", error);
-                  }
-                } else {
-                  alert("Please select an image to upload.");
-                }
-              }}
-            >
-              Upload Image
-            </button>
           </div>
         </div>
         <div className="flex flex-col h-fit space-y-4 p-4 border border-gray-300 rounded">
@@ -480,13 +233,20 @@ export default function GeneratePage() {
             <div className="flex flex-col space-y-4">
               <label
                 htmlFor="audio-upload"
-                className="flex flex-col items-center justify-center h-32 cursor-pointer bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200 relative"
+                className={`flex flex-col items-center justify-center h-32 bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200 relative ${
+                  audioUploading ? "cursor-not-allowed" : "cursor-pointer"
+                }`}
               >
-                {audioPreviewUrl ? (
+                {audioUploading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
+                    <span className="text-gray-500">Uploading audio...</span>
+                  </div>
+                ) : audioUrl ? (
                   <div className="flex items-center space-x-2">
                     <IoMdDocument className="text-4xl text-gray-500" />
                     <span className="text-gray-700 font-medium">
-                      {audioFileName}
+                      {audioFile?.name}
                     </span>
                     <button
                       onClick={(e) => {
@@ -510,41 +270,29 @@ export default function GeneratePage() {
                 type="file"
                 accept="audio/*"
                 className="hidden"
-                onChange={(e) => {
+                disabled={audioUploading}
+                onChange={async (e) => {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
-                    handleAudioPreview(file, setAudioPreviewUrl);
-                    setAudioFileName(file.name);
-                    setAudioFile(file);
+                    setAudioUploading(true);
+                    try {
+                      const data = await handleSingleUpload(
+                        file,
+                        currentUser!,
+                        projectId ? projectId : undefined
+                      );
+                      setAudioUrl(data.files[0].url);
+                      setAudioFile(file);
+                      setProjectId(data.projectId);
+                    } catch (error) {
+                      console.error("Error uploading audio:", error);
+                    } finally {
+                      setAudioUploading(false);
+                    }
                   }
                 }}
               />
-              <button
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:opacity-90 transition-opacity hover:cursor-pointer"
-                onClick={async () => {
-                  if (audioFile) {
-                    try {
-                      const response = await handleAudioUpload(
-                        audioFile,
-                        currentUser!.uid,
-                        jobId
-                      );
-                      if (response.jobId) {
-                        setJobId(response.jobId);
-                      }
-                      setAudioUrl(response.audioUrl);
-                      console.log("Audio uploaded successfully:", response);
-                    } catch (error) {
-                      console.error("Error uploading audio:", error);
-                    }
-                  } else {
-                    alert("Please select an audio file to upload.");
-                  }
-                }}
-              >
-                Upload Audio
-              </button>
-              {audioPreviewUrl && audioFile && (
+              {audioUrl && audioFile && !audioUploading && (
                 <div className="flex flex-col space-y-2">
                   <div className="relative">
                     <div
@@ -567,20 +315,6 @@ export default function GeneratePage() {
             </div>
           </div>
           <div className={audio === "TTS" ? "block" : "hidden"}>
-            <div className="flex items-center justify-between mb-4 p-2 bg-gray-50 rounded">
-              <span className="text-sm text-gray-600">
-                Real-time Processing
-              </span>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={useWebSocket}
-                  onChange={(e) => setUseWebSocket(e.target.checked)}
-                  className="mr-2"
-                />
-                <span className="text-xs">Enable WebSocket</span>
-              </label>
-            </div>
             <input
               type="text"
               placeholder="Enter your sentence here"
@@ -590,10 +324,10 @@ export default function GeneratePage() {
               }
               className="w-full p-2 border border-gray-300 rounded mb-4"
             />
-            {useWebSocket && ttsStatus !== "idle" && (
+            {ttsStatus !== "idle" && (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">{getTTSStatusIcon()}</span>
+                  <span className="text-lg">{getTTSStatusIcon(ttsStatus)}</span>
                   <span className="font-medium text-blue-800 capitalize">
                     {ttsStatus}
                   </span>
@@ -739,35 +473,19 @@ export default function GeneratePage() {
                     setTtsStatus("processing");
                     setTtsMessage("Starting TTS generation...");
 
-                    if (useWebSocket) {
-                      const ttsResponse = await handleOnTTSWebSocket({
-                        ...ttsConfig,
-                        onStatusUpdate: handleTTSStatusUpdate,
-                      });
-                      const typedTtsResponse = ttsResponse as {
-                        audioUrl: string;
-                      };
-                      setAudioPreviewUrl(typedTtsResponse.audioUrl);
-                      setAudioFileName("Generated Audio");
-                      setAudioFile(null);
-                      console.log(
-                        "TTS generated successfully:",
-                        typedTtsResponse
-                      );
-                    } else {
-                      const ttsResponse = await handleOnTTS(ttsConfig);
-                      setAudioPreviewUrl(ttsResponse.audioUrl);
-                      setAudioFileName("Generated Audio");
-                      setAudioFile(null);
-                      setTtsStatus("completed");
-                      setTtsMessage("TTS generation completed");
-                      if (ttsResponse.processingTime) {
-                        setProcessingTime({
-                          total: ttsResponse.processingTime,
-                        });
-                      }
-                      console.log("TTS generated successfully:", ttsResponse);
-                    }
+                    const ttsResponse = await handleOnTTSWebSocket({
+                      TTSOptions: ttsConfig,
+                      onStatusUpdate: handleTTSStatusUpdate,
+                    });
+                    const typedTtsResponse = ttsResponse as {
+                      audioUrl: string;
+                    };
+                    setAudioUrl(typedTtsResponse.audioUrl);
+                    setAudioFile(null);
+                    console.log(
+                      "TTS generated successfully:",
+                      typedTtsResponse
+                    );
                   } catch (error) {
                     setTtsStatus("error");
                     setTtsMessage("TTS generation failed");
@@ -788,22 +506,7 @@ export default function GeneratePage() {
               <button
                 className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 hover:opacity-90 transition-opacity hover:cursor-pointer mt-2"
                 onClick={() => {
-                  setTtsConfig({
-                    text: "",
-                    speed: 15.0,
-                    language: "en-us",
-                    pitch: 20.0,
-                    emotion: {
-                      happiness: 0.3077,
-                      sadness: 0.0256,
-                      disgust: 0.0256,
-                      fear: 0.0256,
-                      surprise: 0.0256,
-                      anger: 0.0256,
-                      other: 0.2564,
-                      neutral: 0.3077,
-                    },
-                  });
+                  setTtsConfig(defaultTTSOptions);
                   setProcessingTime(null);
                   setTtsStatus("idle");
                   setTtsMessage("");
@@ -812,7 +515,7 @@ export default function GeneratePage() {
                 Reset TTS Config
               </button>
             </div>
-            {audioPreviewUrl && !audioFile && (
+            {audioUrl && !audioFile && (
               <div className="flex flex-col space-y-2">
                 <div className="relative">
                   <div
