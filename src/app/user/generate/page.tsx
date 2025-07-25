@@ -4,7 +4,7 @@ import { CiImageOn } from "react-icons/ci";
 import { LuAudioLines } from "react-icons/lu";
 import { IoClose } from "react-icons/io5";
 import { IoMdDocument } from "react-icons/io";
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useWavesurfer } from "@wavesurfer/react";
 import Timeline from "wavesurfer.js/dist/plugins/timeline.esm.js";
@@ -14,7 +14,13 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { TTSOptions, AudioInput, ttsStatus } from "@/types/types";
 import { defaultTTSOptions, getTTSStatusIcon } from "@/lib/utils";
-import { handleSingleUpload, handleOnTTSWebSocket } from "@/lib/api";
+import {
+  handleSingleUpload,
+  handleOnTTSWebSocket,
+  getActiveProject,
+  getObjectsInProject,
+  deleteObjectsInProject,
+} from "@/lib/api";
 
 export default function GeneratePage() {
   //User
@@ -81,9 +87,12 @@ export default function GeneratePage() {
     ttsWavesurfer && ttsWavesurfer.playPause();
   }, [ttsWavesurfer]);
 
-  const handleAudioReset = () => {
+  const handleAudioReset = async () => {
     setAudioUrl(null);
     setAudioFile(null);
+    if (projectId) {
+      await deleteObjectsInProject(currentUser!, projectId, "audio");
+    }
     setProcessingTime(null);
     setTtsStatus("idle");
     setTtsMessage("");
@@ -108,6 +117,37 @@ export default function GeneratePage() {
     }
   };
 
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (currentUser) {
+        try {
+          const project =
+            (await getActiveProject(currentUser)) instanceof Array
+              ? (await getActiveProject(currentUser))[0]
+              : await getActiveProject(currentUser);
+          console.log("Active project:", project);
+          if (project) {
+            const media = project.media;
+            for (const item of media) {
+              if (item.fileType === "IMAGE") {
+                setImageUrl(item.url);
+                setImageFile(new File([], item.fileName));
+              } else if (item.fileType === "AUDIO") {
+                setAudioUrl(item.url);
+                setAudioFile(new File([], item.fileName));
+                setAudio("File");
+              }
+            }
+          }
+          setProjectId(project?.id);
+        } catch (error) {
+          console.error("Error fetching active project:", error);
+        }
+      }
+    };
+    fetchProject();
+  }, [currentUser]);
+
   return (
     <div>
       <div>
@@ -122,12 +162,19 @@ export default function GeneratePage() {
                 htmlFor="file-upload"
                 className={`flex flex-col items-center justify-center h-full cursor-pointer bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200 ${
                   imageUrl ? "hidden" : "flex"
-                }`}
+                } ${audioUploading ? "cursor-not-allowed opacity-50" : ""}`}
               >
                 {imageUploading ? (
                   <div className="flex flex-col items-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
                     <span className="text-gray-500">Uploading image...</span>
+                  </div>
+                ) : audioUploading ? (
+                  <div className="flex flex-col items-center">
+                    <CiImageOn className="text-6xl text-gray-400 mb-2" />
+                    <span className="text-gray-400">
+                      Please wait, audio is uploading...
+                    </span>
                   </div>
                 ) : (
                   <>
@@ -142,10 +189,11 @@ export default function GeneratePage() {
                 <div
                   onClick={() =>
                     !imageUploading &&
+                    !audioUploading &&
                     document.getElementById("file-upload")?.click()
                   }
                   className={`absolute inset-0 transition-opacity ${
-                    imageUploading
+                    imageUploading || audioUploading
                       ? "cursor-not-allowed"
                       : "cursor-pointer hover:opacity-90"
                   }`}
@@ -160,14 +208,20 @@ export default function GeneratePage() {
                     <span className="text-white">
                       {imageUploading
                         ? "Uploading..."
+                        : audioUploading
+                        ? "Audio uploading, please wait..."
                         : "Click to change image"}
                     </span>
                   </div>
-                  {imageUploading && (
+                  {(imageUploading || audioUploading) && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
-                        <span className="text-white">Uploading...</span>
+                        <span className="text-white">
+                          {imageUploading
+                            ? "Uploading..."
+                            : "Audio uploading, please wait..."}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -178,12 +232,19 @@ export default function GeneratePage() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                disabled={imageUploading}
+                disabled={imageUploading || audioUploading}
                 onChange={async (e) => {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
                     setImageUploading(true);
                     try {
+                      if (projectId) {
+                        await deleteObjectsInProject(
+                          currentUser!,
+                          projectId,
+                          "image"
+                        );
+                      }
                       const data = await handleSingleUpload(
                         file,
                         currentUser!,
@@ -234,13 +295,22 @@ export default function GeneratePage() {
               <label
                 htmlFor="audio-upload"
                 className={`flex flex-col items-center justify-center h-32 bg-gray-200 border border-gray-300 rounded hover:bg-gray-300 transition-colors duration-200 relative ${
-                  audioUploading ? "cursor-not-allowed" : "cursor-pointer"
+                  audioUploading || imageUploading
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer"
                 }`}
               >
                 {audioUploading ? (
                   <div className="flex flex-col items-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mb-2"></div>
                     <span className="text-gray-500">Uploading audio...</span>
+                  </div>
+                ) : imageUploading ? (
+                  <div className="flex flex-col items-center">
+                    <LuAudioLines className="text-6xl text-gray-400 mb-2" />
+                    <span className="text-gray-400">
+                      Please wait, image is uploading...
+                    </span>
                   </div>
                 ) : audioUrl ? (
                   <div className="flex items-center space-x-2">
@@ -270,12 +340,19 @@ export default function GeneratePage() {
                 type="file"
                 accept="audio/*"
                 className="hidden"
-                disabled={audioUploading}
+                disabled={audioUploading || imageUploading}
                 onChange={async (e) => {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
                     setAudioUploading(true);
                     try {
+                      if (projectId) {
+                        await deleteObjectsInProject(
+                          currentUser!,
+                          projectId,
+                          "audio"
+                        );
+                      }
                       const data = await handleSingleUpload(
                         file,
                         currentUser!,

@@ -4,6 +4,74 @@ import { TTSOptions } from "@/types/types";
 const ngrokUrl = process.env.NEXT_PUBLIC_NGROK_URL;
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+export const getActiveProject = async (user: User) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/active`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch active project", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching active project:", error);
+    throw error;
+  }
+};
+
+export const deleteObjectsInProject = async (
+  user: User,
+  projectId: string,
+  fieldname: "image" | "audio" | "video"
+) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/bucket/${projectId}`, {
+      method: "DELETE",
+      body: JSON.stringify({ fieldname: fieldname }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to delete objects in project", {
+        cause: response.statusText,
+      });
+    }
+    return true;
+  } catch (error) {
+    console.error("Error deleting objects in project:", error);
+    throw error;
+  }
+};
+
+export const getObjectsInProject = async (user: User, projectId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/bucket/${projectId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch objects in project", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching objects in project:", error);
+    throw error;
+  }
+};
+
 export const handleSingleUpload = async (
   file: File,
   user: User,
