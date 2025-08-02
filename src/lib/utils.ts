@@ -1,4 +1,4 @@
-import { TTSOptions, ttsStatus } from "@/types/types";
+import { TTSOptions, ttsStatus, videoStatus } from "@/types/types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -33,6 +33,22 @@ export const getTTSStatusIcon = (ttsStatus: ttsStatus) => {
     case "processing":
     case "generating":
       return "🎤";
+    case "uploading":
+      return "📤";
+    case "completed":
+      return "✅";
+    case "error":
+      return "❌";
+    default:
+      return "⏳";
+  }
+};
+
+export const getVideoStatusIcon = (videoStatus: videoStatus) => {
+  switch (videoStatus) {
+    case "processing":
+    case "generating":
+      return "🎬";
     case "uploading":
       return "📤";
     case "completed":

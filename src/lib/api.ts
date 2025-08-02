@@ -224,3 +224,162 @@ export const handleOnTTSWebSocket = async ({
     };
   });
 };
+
+export const handleVideoGeneration = async ({
+  user,
+  projectId,
+  imageUrl,
+  audioUrl,
+}: {
+  user: User;
+  projectId: string;
+  imageUrl: string;
+  audioUrl: string;
+}) => {
+  try {
+    const url = new URL("https://42d49aace839.ngrok-free.app/generate-video");
+    url.searchParams.append("image_url", imageUrl);
+    url.searchParams.append("audio_url", audioUrl);
+
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to generate video", {
+        cause: response.statusText,
+      });
+    }
+
+    const data = await response.json();
+    console.log("Video generation response:", data);
+    return data;
+  } catch (error) {
+    console.error("Error generating video:", error);
+    throw error;
+  }
+};
+
+export const handleCopyToKey = async (
+  user: User,
+  sourceKey: string,
+  destinationKey: string
+) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/copy`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+      body: JSON.stringify({ sourceKey, destinationKey }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to copy to key", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error copying to key:", error);
+    throw error;
+  }
+};
+
+export const handleDeleteFromKey = async (key: string, user: User) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/object/${key}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to delete from key", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error deleting from key:", error);
+    throw error;
+  }
+};
+
+export const handleGetVideoUrl = async (user: User, projectId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/bucket/${projectId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+      body: JSON.stringify({ fieldname: "video" }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to get video URL", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error getting video URL:", error);
+    throw error;
+  }
+};
+
+export const handleProjectComplete = async (
+  user: User,
+  projectId: string,
+  video_url: string,
+  fileName: string
+) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/${projectId}/complete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+      body: JSON.stringify({ video_url, fileName }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to complete project", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error completing project:", error);
+    throw error;
+  }
+};
+
+export const handleGetCompletedProjects = async (user: User) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/completed`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch completed projects", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching completed projects:", error);
+    throw error;
+  }
+};

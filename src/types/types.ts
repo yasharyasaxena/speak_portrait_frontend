@@ -17,7 +17,7 @@ export type Emotion = {
   neutral: number;
 };
 
-export type AudioInput = "File" | "TTS" | "Record";
+export type AudioInput = "File" | "TTS" | "Record" | "Upload";
 
 export interface FileUpload {
   file: File;
@@ -26,6 +26,15 @@ export interface FileUpload {
 }
 
 export type ttsStatus =
+  | "processing"
+  | "generating"
+  | "uploading"
+  | "completed"
+  | "error"
+  | "idle"
+  | null;
+
+export type videoStatus =
   | "processing"
   | "generating"
   | "uploading"

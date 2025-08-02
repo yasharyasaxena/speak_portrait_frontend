@@ -1,25 +1,41 @@
 "use client";
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+  useEffect,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { CiImageOn } from "react-icons/ci";
 import { LuAudioLines } from "react-icons/lu";
 import { IoClose } from "react-icons/io5";
 import { IoMdDocument } from "react-icons/io";
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useWavesurfer } from "@wavesurfer/react";
+import { CustomAudioRecorder } from "@/components/CustomAudioRecorder";
 import Timeline from "wavesurfer.js/dist/plugins/timeline.esm.js";
 import { useAuth } from "@/context/AuthContext";
 import Loading from "@/app/loading";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { TTSOptions, AudioInput, ttsStatus } from "@/types/types";
-import { defaultTTSOptions, getTTSStatusIcon } from "@/lib/utils";
+import { TTSOptions, AudioInput, ttsStatus, videoStatus } from "@/types/types";
+import {
+  defaultTTSOptions,
+  getTTSStatusIcon,
+  getVideoStatusIcon,
+} from "@/lib/utils";
 import {
   handleSingleUpload,
   handleOnTTSWebSocket,
+  handleVideoGeneration,
   getActiveProject,
   getObjectsInProject,
   deleteObjectsInProject,
+  handleCopyToKey,
+  handleDeleteFromKey,
+  handleGetVideoUrl,
+  handleProjectComplete,
 } from "@/lib/api";
 
 export default function GeneratePage() {
@@ -45,6 +61,14 @@ export default function GeneratePage() {
   const [ttsMessage, setTtsMessage] = useState<string>("");
   const [processingTime, setProcessingTime] = useState<any>(null);
   const [ttsConfig, setTtsConfig] = useState<TTSOptions>(defaultTTSOptions);
+
+  //Video
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoStatus, setVideoStatus] = useState<videoStatus>("idle");
+  const [videoMessage, setVideoMessage] = useState<string>("");
+  const [videoStartTime, setVideoStartTime] = useState<number | null>(null);
+  const [videoElapsedTime, setVideoElapsedTime] = useState<number>(0);
+  const videoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   if (loading)
     return (
@@ -117,6 +141,32 @@ export default function GeneratePage() {
     }
   };
 
+  const startVideoTimer = () => {
+    const startTime = Date.now();
+    setVideoStartTime(startTime);
+    setVideoElapsedTime(0);
+
+    videoTimerRef.current = setInterval(() => {
+      setVideoElapsedTime((Date.now() - startTime) / 1000);
+    }, 100); // Update every 100ms for smooth decimal display
+  };
+
+  const stopVideoTimer = () => {
+    if (videoTimerRef.current) {
+      clearInterval(videoTimerRef.current);
+      videoTimerRef.current = null;
+    }
+  };
+
+  // Cleanup timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (videoTimerRef.current) {
+        clearInterval(videoTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const fetchProject = async () => {
       if (currentUser) {
@@ -136,6 +186,8 @@ export default function GeneratePage() {
                 setAudioUrl(item.url);
                 setAudioFile(new File([], item.fileName));
                 setAudio("File");
+              } else if (item.fileType === "VIDEO") {
+                setVideoUrl(item.url);
               }
             }
           }
@@ -276,19 +328,61 @@ export default function GeneratePage() {
                 <span className="text-xs">Use TTS</span>
               </Button>
               <Button
-                variant={
-                  audio === "Record" || audio === "File" ? "default" : "outline"
-                }
+                variant={audio === "Record" ? "default" : "outline"}
                 className="text-sm"
                 onClick={() => setAudio("Record")}
               >
-                <span className="text-xs">Record/Upload Audio</span>
+                <span className="text-xs">Record Audio</span>
+              </Button>
+              <Button
+                variant={
+                  audio === "Upload" || audio === "File" ? "default" : "outline"
+                }
+                className="text-sm"
+                onClick={() => setAudio("Upload")}
+              >
+                <span className="text-xs">Upload Audio</span>
               </Button>
             </div>
           </div>
+          <div className={audio === "Record" ? "block" : "hidden"}>
+            <CustomAudioRecorder
+              onRecordingComplete={(audioBlob: Blob) => {
+                console.log("Recording complete");
+                // Convert blob to file and upload
+                const file = new File(
+                  [audioBlob],
+                  `recorded-audio-${Date.now()}.webm`,
+                  {
+                    type: "audio/webm",
+                  }
+                );
+                // Handle the recorded audio file similar to uploaded files
+                setAudioUploading(true);
+                setAudio("Upload");
+                handleSingleUpload(
+                  file,
+                  currentUser!,
+                  projectId ? projectId : undefined
+                )
+                  .then((data) => {
+                    setAudioUrl(data.files[0].url);
+                    setAudioFile(file);
+                    setProjectId(data.projectId);
+                  })
+                  .catch((error) => {
+                    console.error("Error uploading recorded audio:", error);
+                  })
+                  .finally(() => {
+                    setAudioUploading(false);
+                  });
+              }}
+              onNotAllowedOrFound={(err: any) => console.table(err)}
+            />
+          </div>
           <div
             className={
-              audio === "Record" || audio === "File" ? "block" : "hidden"
+              audio === "Upload" || audio === "File" ? "block" : "hidden"
             }
           >
             <div className="flex flex-col space-y-4">
@@ -613,6 +707,212 @@ export default function GeneratePage() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <div className="flex flex-col space-y-4 p-4 border border-gray-300 rounded">
+          <h2 className="text-xl font-bold">Generate AI Portrait Video</h2>
+
+          <div className="bg-gray-50 p-4 rounded">
+            <h3 className="font-medium mb-2">Prerequisites:</h3>
+            <div className="flex items-center space-x-4 text-sm">
+              <div
+                className={`flex items-center ${
+                  imageUrl ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                <span className="mr-1">{imageUrl ? "✅" : "❌"}</span>
+                Portrait Image
+              </div>
+              <div
+                className={`flex items-center ${
+                  audioUrl ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                <span className="mr-1">{audioUrl ? "✅" : "❌"}</span>
+                Audio Source
+              </div>
+            </div>
+            {(!imageUrl || !audioUrl) && (
+              <p className="text-red-600 text-sm mt-2">
+                Please upload both a portrait image and audio before generating
+                the video.
+              </p>
+            )}
+          </div>
+
+          {videoStatus !== "idle" && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">
+                  {getVideoStatusIcon(videoStatus)}
+                </span>
+                <span className="font-medium text-blue-800 capitalize">
+                  {videoStatus}
+                </span>
+                {videoStatus === "processing" && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="text-sm font-mono text-blue-700">
+                      {videoElapsedTime.toFixed(1)}s
+                    </span>
+                  </div>
+                )}
+              </div>
+              {videoMessage && (
+                <p className="text-sm text-blue-600">{videoMessage}</p>
+              )}
+              {videoStatus === "processing" && (
+                <div className="mt-3">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full animate-pulse"
+                      style={{ width: "100%" }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-blue-500 mt-1 text-center">
+                    Processing your request... Please wait
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-center">
+            <button
+              className={`px-8 py-3 rounded-lg font-medium transition-all ${
+                videoStatus === "idle" && imageUrl && audioUrl && projectId
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+              disabled={
+                videoStatus !== "idle" || !imageUrl || !audioUrl || !projectId
+              }
+              onClick={async () => {
+                if (!projectId || !imageUrl || !audioUrl) {
+                  console.error("Missing required data:", {
+                    projectId,
+                    imageUrl,
+                    audioUrl,
+                  });
+                  return;
+                }
+
+                try {
+                  setVideoStatus("processing");
+                  setVideoMessage("Generating video...");
+                  startVideoTimer();
+
+                  const videoResponse = await handleVideoGeneration({
+                    user: currentUser!,
+                    projectId,
+                    imageUrl,
+                    audioUrl,
+                  });
+                  const copyResponse = await handleCopyToKey(
+                    currentUser!,
+                    videoResponse.name,
+                    `${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
+                  );
+                  const deleteResponse = await handleDeleteFromKey(
+                    videoResponse.name,
+                    currentUser!
+                  );
+
+                  const url = `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`;
+
+                  console.log(
+                    "url:",
+                    `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
+                  );
+
+                  await handleProjectComplete(
+                    currentUser!,
+                    projectId,
+                    url,
+                    videoResponse.name
+                  );
+
+                  stopVideoTimer();
+                  const finalElapsedTime = videoElapsedTime;
+                  if (videoResponse.name) {
+                    setVideoUrl(
+                      `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
+                    );
+                    setVideoStatus("completed");
+                    setVideoMessage(
+                      `Video generated successfully in ${finalElapsedTime.toFixed(
+                        1
+                      )}s!`
+                    );
+                  } else {
+                    throw new Error("No video file name returned from API");
+                  }
+
+                  console.log("Video generated successfully:", videoResponse);
+                } catch (error) {
+                  const finalElapsedTime = videoElapsedTime;
+                  stopVideoTimer();
+                  setVideoStatus("error");
+                  setVideoMessage(
+                    `Video generation failed after ${finalElapsedTime.toFixed(
+                      1
+                    )}s`
+                  );
+                  console.error("Error generating video:", error);
+                }
+              }}
+            >
+              {videoStatus === "idle"
+                ? "🎬 Generate AI Portrait Video"
+                : videoStatus === "processing"
+                ? "🎬 Generating Video..."
+                : videoStatus === "completed"
+                ? "✅ Video Generated!"
+                : videoStatus === "error"
+                ? "❌ Generation Failed"
+                : "🎬 Generate AI Portrait Video"}
+            </button>
+          </div>
+
+          {videoUrl && (
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-medium mb-4 text-center">Generated Video</h3>
+              <div className="flex justify-center">
+                <video
+                  src={videoUrl}
+                  controls
+                  className="max-w-full max-h-96 rounded-lg shadow-lg"
+                  style={{ maxWidth: "600px" }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+              <div className="flex justify-center mt-4 space-x-4">
+                <a
+                  href={videoUrl}
+                  download="generated-portrait-video.mp4"
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  📥 Download Video
+                </a>
+                <button
+                  onClick={() => {
+                    setVideoUrl(null);
+                    setVideoStatus("idle");
+                    setVideoMessage("");
+                    setVideoElapsedTime(0);
+                    setVideoStartTime(null);
+                    stopVideoTimer();
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                >
+                  🆕 New Project
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
