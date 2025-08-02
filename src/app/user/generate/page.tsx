@@ -37,6 +37,8 @@ import {
   handleGetVideoUrl,
   handleProjectComplete,
 } from "@/lib/api";
+import AgeTransformation from "@/components/AgeTransformation";
+import BackgroundReplacement from "@/components/BackgroundReplacement";
 
 export default function GeneratePage() {
   //User
@@ -69,6 +71,15 @@ export default function GeneratePage() {
   const [videoStartTime, setVideoStartTime] = useState<number | null>(null);
   const [videoElapsedTime, setVideoElapsedTime] = useState<number>(0);
   const videoTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  //Age Transformation
+  const [showAgeTransformation, setShowAgeTransformation] =
+    useState<boolean>(false);
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+
+  //Background Replacement
+  const [showBackgroundReplacement, setShowBackgroundReplacement] =
+    useState<boolean>(false);
 
   if (loading)
     return (
@@ -155,6 +166,32 @@ export default function GeneratePage() {
     if (videoTimerRef.current) {
       clearInterval(videoTimerRef.current);
       videoTimerRef.current = null;
+    }
+  };
+
+  // Age Transformation handlers
+  const handleAgeTransformationComplete = (transformedImageUrl: string) => {
+    setImageUrl(transformedImageUrl);
+    setShowAgeTransformation(false);
+  };
+
+  const handleShowAgeTransformation = () => {
+    if (imageUrl) {
+      setOriginalImageUrl(imageUrl);
+      setShowAgeTransformation(true);
+    }
+  };
+
+  // Background Replacement handlers
+  const handleBackgroundReplacementComplete = (transformedImageUrl: string) => {
+    setImageUrl(transformedImageUrl);
+    setShowBackgroundReplacement(false);
+  };
+
+  const handleShowBackgroundReplacement = () => {
+    if (imageUrl) {
+      setOriginalImageUrl(imageUrl);
+      setShowBackgroundReplacement(true);
     }
   };
 
@@ -314,6 +351,25 @@ export default function GeneratePage() {
                 }}
               />
             </div>
+            {/* AI Enhancement Buttons */}
+            {imageUrl && !imageUploading && !audioUploading && (
+              <div className="mt-4 flex justify-center space-x-3">
+                <Button
+                  onClick={handleShowAgeTransformation}
+                  variant="outline"
+                  className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors"
+                >
+                  🎭 Transform Age (Optional)
+                </Button>
+                <Button
+                  onClick={handleShowBackgroundReplacement}
+                  variant="outline"
+                  className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  🖼️ Replace Background (Optional)
+                </Button>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-col h-fit space-y-4 p-4 border border-gray-300 rounded">
@@ -915,6 +971,30 @@ export default function GeneratePage() {
           )}
         </div>
       </div>
+
+      {/* Age Transformation Modal */}
+      {showAgeTransformation && originalImageUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <AgeTransformation
+              originalImageUrl={originalImageUrl}
+              projectId={projectId}
+              onTransformationComplete={handleAgeTransformationComplete}
+              onClose={() => setShowAgeTransformation(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Background Replacement Modal */}
+      {showBackgroundReplacement && originalImageUrl && (
+        <BackgroundReplacement
+          originalImageUrl={originalImageUrl}
+          projectId={projectId}
+          onTransformationComplete={handleBackgroundReplacementComplete}
+          onClose={() => setShowBackgroundReplacement(false)}
+        />
+      )}
     </div>
   );
 }

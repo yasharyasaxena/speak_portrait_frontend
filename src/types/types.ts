@@ -42,3 +42,10 @@ export type videoStatus =
   | "error"
   | "idle"
   | null;
+
+export type ageTransformationStatus =
+  | "processing"
+  | "completed"
+  | "error"
+  | "idle"
+  | null;
