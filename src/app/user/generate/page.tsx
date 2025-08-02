@@ -866,36 +866,36 @@ export default function GeneratePage() {
                     imageUrl,
                     audioUrl,
                   });
-                  const copyResponse = await handleCopyToKey(
-                    currentUser!,
-                    videoResponse.name,
-                    `${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
-                  );
-                  const deleteResponse = await handleDeleteFromKey(
-                    videoResponse.name,
-                    currentUser!
-                  );
 
-                  const url = `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`;
+                  console.log("Video generation response:", videoResponse);
+                  // const copyResponse = await handleCopyToKey(
+                  //   currentUser!,
+                  //   videoResponse.name,
+                  //   `${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
+                  // );
+                  // const deleteResponse = await handleDeleteFromKey(
+                  //   videoResponse.name,
+                  //   currentUser!
+                  // );
 
-                  console.log(
-                    "url:",
-                    `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
-                  );
+                  // const url = `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`;
 
-                  await handleProjectComplete(
-                    currentUser!,
-                    projectId,
-                    url,
-                    videoResponse.name
-                  );
+                  // console.log(
+                  //   "url:",
+                  //   `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
+                  // );
+
+                  // await handleProjectComplete(
+                  //   currentUser!,
+                  //   projectId,
+                  //   url,
+                  //   videoResponse.name
+                  // );
 
                   stopVideoTimer();
                   const finalElapsedTime = videoElapsedTime;
                   if (videoResponse.name) {
-                    setVideoUrl(
-                      `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
-                    );
+                    setVideoUrl(videoResponse.video_url);
                     setVideoStatus("completed");
                     setVideoMessage(
                       `Video generated successfully in ${finalElapsedTime.toFixed(

@@ -237,7 +237,7 @@ export const handleVideoGeneration = async ({
   audioUrl: string;
 }) => {
   try {
-    const url = new URL("https://42d49aace839.ngrok-free.app/generate-video");
+    const url = new URL("https://16d496cc60a1.ngrok-free.app/generate-video");
     url.searchParams.append("image_url", imageUrl);
     url.searchParams.append("audio_url", audioUrl);
 
