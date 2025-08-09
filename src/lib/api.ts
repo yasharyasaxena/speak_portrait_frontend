@@ -1,8 +1,18 @@
 import { User } from "firebase/auth";
 import { TTSOptions } from "@/types/types";
 
-const ngrokUrl = process.env.NEXT_PUBLIC_NGROK_URL;
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const videoGenNgrokUrl = process.env.NEXT_PUBLIC_VIDEO_GEN_NGROK_URL || "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const ttsNgrokUrl = (process.env.NEXT_PUBLIC_TTS_NGROK_URL || "").replace(
+  /^https?:\/\//,
+  ""
+);
+const ageTransformNgrokUrl = (
+  process.env.NEXT_PUBLIC_AGE_TRANSFORM_NGROK_URL || ""
+).replace(/^https?:\/\//, "");
+const backgroundReplacementNgrokUrl = (
+  process.env.NEXT_PUBLIC_BACKGROUND_REPLACEMENT_NGROK_URL || ""
+).replace(/^https?:\/\//, "");
 
 export const getActiveProject = async (user: User) => {
   try {
@@ -167,7 +177,7 @@ export const handleOnTTSWebSocket = async ({
   onStatusUpdate: (data: any) => void;
 }) => {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`wss://${ngrokUrl}/ws/tts`);
+    const ws = new WebSocket(`wss://${ttsNgrokUrl}/ws/tts`);
     let isCompleted = false;
 
     const connectionTimeout = setTimeout(() => {
@@ -237,7 +247,7 @@ export const handleVideoGeneration = async ({
   audioUrl: string;
 }) => {
   try {
-    const url = new URL("https://16d496cc60a1.ngrok-free.app/generate-video");
+    const url = new URL(`${videoGenNgrokUrl}/generate-video`);
     url.searchParams.append("image_url", imageUrl);
     url.searchParams.append("audio_url", audioUrl);
 
@@ -384,46 +394,6 @@ export const handleGetCompletedProjects = async (user: User) => {
   }
 };
 
-// Test function to check if the age transformation server is accessible
-export const testAgeTransformationConnection = async () => {
-  try {
-    console.log("🔍 Testing age transformation WebSocket endpoint...");
-
-    // Test WebSocket connection directly
-    return new Promise((resolve, reject) => {
-      const testClientId = `test_${Date.now()}`;
-      const testWs = new WebSocket(
-        `wss://b922cb9c3588.ngrok-free.app/ws/${testClientId}`
-      );
-
-      const timeout = setTimeout(() => {
-        testWs.close();
-        reject(new Error("WebSocket test connection timeout"));
-      }, 10000); // 10 second timeout for test
-
-      testWs.onopen = () => {
-        console.log("✅ WebSocket connection test successful");
-        clearTimeout(timeout);
-        testWs.close();
-        resolve(true);
-      };
-
-      testWs.onerror = (error) => {
-        console.error("❌ WebSocket test failed:", error);
-        clearTimeout(timeout);
-        reject(new Error("WebSocket endpoint not accessible"));
-      };
-
-      testWs.onclose = () => {
-        clearTimeout(timeout);
-      };
-    });
-  } catch (error) {
-    console.error("❌ WebSocket test failed:", error);
-    throw new Error("Age transformation WebSocket server is not accessible");
-  }
-};
-
 export const handleAgeTransformationWebSocket = async ({
   imageUrl,
   targetAge,
@@ -434,22 +404,20 @@ export const handleAgeTransformationWebSocket = async ({
   onStatusUpdate: (data: any) => void;
 }) => {
   return new Promise((resolve, reject) => {
-    // Generate a unique client ID for this connection
     const clientId = `client_${Date.now()}_${Math.random()
       .toString(36)
       .substr(2, 9)}`;
 
-    const wsUrl = `wss://73a17ed8d43d.ngrok-free.app/ws/${clientId}`;
+    const wsUrl = `wss://${ageTransformNgrokUrl}/ws/${clientId}`;
     console.log("🔗 Attempting to connect to:", wsUrl);
 
     // Alternative URLs to try if the main one fails
     const alternativeUrls = [
-      `ws://73a17ed8d43d.ngrok-free.app/ws/${clientId}`,
-      `wss://73a17ed8d43d.ngrok-free.app/ws`,
-      `wss://73a17ed8d43d.ngrok-free.app/websocket/${clientId}`,
+      `ws://${ageTransformNgrokUrl}/ws/${clientId}`,
+      `wss://${ageTransformNgrokUrl}/ws`,
+      `wss://${ageTransformNgrokUrl}/websocket/${clientId}`,
     ];
 
-    // Connect to plain WebSocket server with client ID
     const ws = new WebSocket(wsUrl);
     let isCompleted = false;
 
@@ -567,8 +535,7 @@ export const handleBackgroundReplacementWebSocket = async ({
   onStatusUpdate: (data: any) => void;
 }) => {
   return new Promise((resolve, reject) => {
-    // Use the ngrok URL for background replacement service
-    const wsUrl = `wss://859e9537b404.ngrok-free.app/ws`;
+    const wsUrl = `wss://${backgroundReplacementNgrokUrl}/ws`;
     console.log(
       "🔗 Attempting to connect to background replacement service:",
       wsUrl
