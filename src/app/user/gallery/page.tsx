@@ -1,9 +1,9 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Loading from "@/app/loading";
 import { handleGetCompletedProjects } from "@/lib/api";
-import { IoMdDownload, IoMdPlay, IoMdPause } from "react-icons/io";
+import { IoMdDownload, IoMdPlay, IoMdPause, IoMdClose } from "react-icons/io";
 import { MdDateRange, MdVideoLibrary } from "react-icons/md";
 import { HiOutlineExternalLink } from "react-icons/hi";
 
@@ -21,27 +21,61 @@ interface Project {
   }[];
 }
 
-interface VideoCardProps {
+interface ExpandableCardProps {
   project: Project;
   videoUrl: string;
+  isExpanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
+  layoutId: string;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ project, videoUrl }) => {
+const ExpandableCard: React.FC<ExpandableCardProps> = ({
+  project,
+  videoUrl,
+  isExpanded,
+  onExpand,
+  onCollapse,
+  layoutId,
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const handlePlayPause = () => {
-    if (videoRef) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isExpanded) {
+        onCollapse();
+      }
+    };
+
+    if (isExpanded) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      if (!isExpanded) {
+        document.body.style.overflow = "unset";
+      }
+    };
+  }, [isExpanded, onCollapse]);
+
+  const handlePlayPause = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
       if (isPlaying) {
-        videoRef.pause();
+        videoRef.current.pause();
       } else {
-        videoRef.play();
+        videoRef.current.play();
       }
       setIsPlaying(!isPlaying);
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const link = document.createElement("a");
     link.href = videoUrl;
     link.download = `${project.name || project.id}-video.mp4`;
@@ -60,71 +94,221 @@ const VideoCard: React.FC<VideoCardProps> = ({ project, videoUrl }) => {
     });
   };
 
-  return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-      <div className="relative aspect-video bg-gray-100">
+  const cardContent = (
+    <>
+      <div className="relative aspect-video bg-gradient-to-br from-neutral-200 dark:from-neutral-900 dark:to-neutral-800 to-neutral-100 overflow-hidden">
         <video
-          ref={setVideoRef}
+          ref={videoRef}
           src={videoUrl}
           className="w-full h-full object-cover"
+          poster=""
+          preload="metadata"
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={() => setIsPlaying(false)}
-          poster="" // You can add a thumbnail if available
+          onClick={!isExpanded ? onExpand : handlePlayPause}
+          controls={isExpanded}
+          muted={!isExpanded}
         />
-        <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-          <button
-            onClick={handlePlayPause}
-            className="bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full p-3 transition-all duration-200 transform hover:scale-110"
-          >
-            {isPlaying ? (
-              <IoMdPause className="text-2xl text-gray-800" />
-            ) : (
-              <IoMdPlay className="text-2xl text-gray-800 ml-1" />
-            )}
-          </button>
-        </div>
-      </div>
 
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-lg text-gray-800 truncate">
-            {project.name || `Project ${project.id.slice(0, 8)}`}
-          </h3>
-          <div className="flex items-center text-sm text-gray-500">
-            <MdDateRange className="mr-1" />
-            {formatDate(project.updatedAt)}
-          </div>
-        </div>
+        {/* Gradient overlay for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
-        <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-          <div className="flex items-center">
-            <MdVideoLibrary className="mr-1" />
-            <span>{project.media.length} files</span>
+        {/* Play button overlay - only show when not expanded */}
+        {!isExpanded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <button
+              onClick={onExpand}
+              className="bg-white/10 backdrop-blur-md hover:bg-white/20 rounded-full p-4 transition-all duration-300 transform hover:scale-110 border border-white/20"
+            >
+              <IoMdPlay className="text-3xl text-white ml-1" />
+            </button>
           </div>
-          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-            Completed
+        )}
+
+        {/* Status badge */}
+        <div className="absolute top-3 right-3">
+          <span className="bg-emerald-500/90 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-medium border border-white/20">
+            ✓ Complete
           </span>
         </div>
-
-        <div className="flex space-x-2">
-          <button
-            onClick={handleDownload}
-            className="flex-1 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-lg transition-colors duration-200"
-          >
-            <IoMdDownload className="mr-2" />
-            Download
-          </button>
-          <a
-            href={videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center bg-gray-500 hover:bg-gray-600 text-white py-2 px-3 rounded-lg transition-colors duration-200"
-          >
-            <HiOutlineExternalLink className="text-lg" />
-          </a>
-        </div>
       </div>
+
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1 pr-4">
+            <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-200 leading-tight">
+              {project.name || `Project ${project.id.slice(0, 8)}`}
+            </h3>
+            <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 flex items-center">
+              <MdDateRange className="mr-2 text-neutral-500" />
+              {formatDate(project.createdAt)}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+          <div className="flex items-center">
+            <MdVideoLibrary className="mr-2" />
+            <span>{project.media.length} media files</span>
+          </div>
+          <div className="flex items-center text-xs">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></div>
+            Ready
+          </div>
+        </div>
+
+        {/* Quick action buttons for collapsed state */}
+        {!isExpanded && (
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload(e);
+              }}
+              className="flex-1 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-lg transition-all duration-200 text-sm font-medium"
+            >
+              <IoMdDownload className="mr-1" />
+              Download
+            </button>
+            <a
+              href={videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-center bg-neutral-600 hover:bg-neutral-700 text-white py-2 px-3 rounded-lg transition-all duration-200 text-sm font-medium"
+            >
+              <HiOutlineExternalLink className="text-lg" />
+            </a>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  if (isExpanded) {
+    return (
+      <>
+        {/* Backdrop with blur */}
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 transition-all duration-300"
+          onClick={onCollapse}
+        />
+
+        {/* Expanded card */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
+          <div
+            className="w-full max-w-5xl h-full max-h-[95vh] bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 ease-out transform flex flex-col"
+            style={{
+              animation: "expandIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            }}
+          >
+            {/* Close button */}
+            <button
+              onClick={onCollapse}
+              className="absolute top-4 right-4 z-20 bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white rounded-full p-2 transition-all duration-200 border border-white/20"
+            >
+              <IoMdClose className="text-xl" />
+            </button>
+
+            {/* Video Section - Takes most space */}
+            <div className="flex-1 p-6 min-h-0">
+              <div className="relative w-full h-full bg-black rounded-xl overflow-hidden">
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  className="w-full h-full object-contain"
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  controls
+                  autoPlay={false}
+                />
+              </div>
+            </div>
+
+            {/* Content Section - Scrollable if needed */}
+            <div className="flex-shrink-0 max-h-64 overflow-y-auto">
+              <div className="p-6 border-t border-neutral-200 dark:border-neutral-700">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1 pr-4">
+                    <h3 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-200 leading-tight">
+                      {project.name || `Project ${project.id.slice(0, 8)}`}
+                    </h3>
+                    <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 flex items-center">
+                      <MdDateRange className="mr-2 text-neutral-500" />
+                      Created: {formatDate(project.createdAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+                  <div className="flex items-center">
+                    <MdVideoLibrary className="mr-2" />
+                    <span>{project.media.length} media files</span>
+                  </div>
+                  <div className="flex items-center text-xs">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></div>
+                    Ready
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-3 mb-4">
+                  <button
+                    onClick={handleDownload}
+                    className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-all duration-200 text-sm font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  >
+                    <IoMdDownload className="mr-2" />
+                    Download Video
+                  </button>
+                  <a
+                    href={videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center bg-neutral-600 hover:bg-neutral-700 text-white px-6 py-3 rounded-lg transition-all duration-200 text-sm font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  >
+                    <HiOutlineExternalLink className="mr-2" />
+                    Open in New Tab
+                  </a>
+                </div>
+
+                {/* Project details */}
+                <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        Created:
+                      </span>
+                      <p className="font-medium text-neutral-700 dark:text-neutral-300">
+                        {formatDate(project.createdAt)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        Last Updated:
+                      </span>
+                      <p className="font-medium text-neutral-700 dark:text-neutral-300">
+                        {formatDate(project.updatedAt)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div
+      ref={cardRef}
+      className="bg-white dark:bg-neutral-900 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer group border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transform hover:-translate-y-1 hover:scale-[1.02]"
+      onClick={onExpand}
+    >
+      {cardContent}
     </div>
   );
 };
@@ -134,6 +318,17 @@ export default function GalleryPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Expandable card state
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+
+  const handleCardExpand = (projectId: string) => {
+    setExpandedCardId(projectId);
+  };
+
+  const handleCardCollapse = () => {
+    setExpandedCardId(null);
+  };
 
   useEffect(() => {
     const fetchCompletedProjects = async () => {
@@ -191,91 +386,100 @@ export default function GalleryPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Video Gallery</h1>
-        <p className="text-gray-600">
-          Browse your completed AI portrait videos
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-neutral-950 dark:to-neutral-900">
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-neutral-800 via-neutral-600 to-neutral-800 dark:from-neutral-200 dark:via-neutral-400 dark:to-neutral-200 bg-clip-text text-transparent mb-4">
+            Video Gallery
+          </h1>
+          <p className="text-neutral-600 dark:text-neutral-400 text-lg">
+            Browse your completed AI portrait videos with Aceternity-style
+            elegance
+          </p>
+        </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-gray-600">Loading your videos...</p>
-          </div>
-        </div>
-      ) : error ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              Error Loading Gallery
-            </h2>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors duration-200"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      ) : projectsWithVideos.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center max-w-md">
-            <div className="text-gray-400 text-6xl mb-4">🎬</div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              No Videos Yet
-            </h2>
-            <p className="text-gray-600 mb-6">
-              You haven't completed any video projects yet. Start creating your
-              first AI portrait video!
-            </p>
-            <a
-              href="/user/generate"
-              className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
-            >
-              Create Your First Video
-            </a>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="mb-6 flex items-center justify-between">
-            <p className="text-gray-600">
-              Showing {projectsWithVideos.length} completed video
-              {projectsWithVideos.length !== 1 ? "s" : ""}
-            </p>
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <span>Sort by:</span>
-              <select className="border border-gray-300 rounded px-2 py-1 text-gray-700">
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="name">Name</option>
-              </select>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+              <p className="text-gray-600">Loading your videos...</p>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {projectsWithVideos.map((project) => {
-              const videoMedia = project.media.find(
-                (media) => media.fileType === "VIDEO"
-              );
-              if (!videoMedia) return null;
-
-              return (
-                <VideoCard
-                  key={project.id}
-                  project={project}
-                  videoUrl={videoMedia.url}
-                />
-              );
-            })}
+        ) : error ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="text-red-500 text-6xl mb-4">⚠️</div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                Error Loading Gallery
+              </h2>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors duration-200"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
-        </>
-      )}
+        ) : projectsWithVideos.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center max-w-md">
+              <div className="text-gray-400 text-6xl mb-4">🎬</div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                No Videos Yet
+              </h2>
+              <p className="text-gray-600 mb-6">
+                You haven't completed any video projects yet. Start creating
+                your first AI portrait video!
+              </p>
+              <a
+                href="/user/generate"
+                className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+              >
+                Create Your First Video
+              </a>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-6 flex items-center justify-between">
+              <p className="text-gray-600">
+                Showing {projectsWithVideos.length} completed video
+                {projectsWithVideos.length !== 1 ? "s" : ""}
+              </p>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <span>Sort by:</span>
+                <select className="border border-gray-300 rounded px-2 py-1 text-gray-700">
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="name">Name</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {projectsWithVideos.map((project) => {
+                const videoMedia = project.media.find(
+                  (media) => media.fileType === "VIDEO"
+                );
+                if (!videoMedia) return null;
+
+                return (
+                  <ExpandableCard
+                    key={project.id}
+                    project={project}
+                    videoUrl={videoMedia.url}
+                    isExpanded={expandedCardId === project.id}
+                    onExpand={() => handleCardExpand(project.id)}
+                    onCollapse={handleCardCollapse}
+                    layoutId={`card-${project.id}`}
+                  />
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
