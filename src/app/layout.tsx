@@ -15,6 +15,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const metadata: Metadata = {
+  title: "SpeakPortrait",
+  description: "Transform static photos into realistic talking videos",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -22,18 +30,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <title>SpeakPortrait</title>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <AuthProvider>
-          <Navbar />
-          <div className="min-h-[90vh] flex flex-col bg-gray-100">
-            {children}
+          <div className="min-h-screen flex flex-col">
+            <Navbar />
+            <main className="flex-1 bg-gray-100 min-h-[90vh]">{children}</main>
+            <Footer />
           </div>
         </AuthProvider>
-        <Footer />
       </body>
     </html>
   );
