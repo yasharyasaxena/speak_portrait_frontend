@@ -913,7 +913,7 @@ export default function GeneratePage() {
 
                   const stopTime = performance.now();
                   stopVideoTimer();
-                  const finalElapsedTime = stopTime - startTime;
+                  const finalElapsedTime = (stopTime - startTime) / 1000;
                   if (videoResponse.name) {
                     setVideoUrl(finalVideoUrl);
                     setVideoStatus("completed");
