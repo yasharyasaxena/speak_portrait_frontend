@@ -20,6 +20,20 @@ import Loading from "@/app/loading";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { TTSOptions, AudioInput, ttsStatus, videoStatus } from "@/types/types";
+
+// Add these type definitions at the top after imports
+interface ProcessingTime {
+  generation?: number;
+  upload?: number;
+  total?: number;
+}
+
+interface TTSStatusData {
+  status: ttsStatus;
+  message?: string;
+  processingTime?: number;
+  generationTime?: number;
+}
 import {
   defaultTTSOptions,
   getTTSStatusIcon,
@@ -38,7 +52,7 @@ import BackgroundReplacement from "@/components/BackgroundReplacement";
 
 export default function GeneratePage() {
   //User
-  const { currentUser, isAuthenticated, loading } = useAuth();
+  const { currentUser, loading } = useAuth();
   const [projectId, setProjectId] = useState<string>();
   const [projectLoading, setProjectLoading] = useState<boolean>(false);
   const uploadContainerRef = useRef(null);
@@ -58,7 +72,9 @@ export default function GeneratePage() {
   const ttsContainerRef = useRef(null);
   const [ttsStatus, setTtsStatus] = useState<ttsStatus>("idle");
   const [ttsMessage, setTtsMessage] = useState<string>("");
-  const [processingTime, setProcessingTime] = useState<any>(null);
+  const [processingTime, setProcessingTime] = useState<ProcessingTime | null>(
+    null
+  );
   const [ttsConfig, setTtsConfig] = useState<TTSOptions>(defaultTTSOptions);
 
   //Video
@@ -105,11 +121,15 @@ export default function GeneratePage() {
   });
 
   const onUploadPlayPause = useCallback(() => {
-    uploadWavesurfer && uploadWavesurfer.playPause();
+    if (uploadWavesurfer) {
+      uploadWavesurfer.playPause();
+    }
   }, [uploadWavesurfer]);
 
   const onTtsPlayPause = useCallback(() => {
-    ttsWavesurfer && ttsWavesurfer.playPause();
+    if (ttsWavesurfer) {
+      ttsWavesurfer.playPause();
+    }
   }, [ttsWavesurfer]);
 
   // Cleanup timer on component unmount
@@ -179,15 +199,15 @@ export default function GeneratePage() {
     if (fileInput) fileInput.value = "";
   };
 
-  const handleTTSStatusUpdate = (data: any) => {
+  const handleTTSStatusUpdate = (data: TTSStatusData) => {
     setTtsStatus(data.status);
     setTtsMessage(data.message || "");
 
     if (data.processingTime) {
-      setProcessingTime(data.processingTime);
+      setProcessingTime({ total: data.processingTime });
     }
     if (data.generationTime) {
-      setProcessingTime((prev: any) => ({
+      setProcessingTime((prev: ProcessingTime | null) => ({
         ...prev,
         generation: data.generationTime,
       }));
@@ -433,7 +453,7 @@ export default function GeneratePage() {
                     setAudioUploading(false);
                   });
               }}
-              onNotAllowedOrFound={(err: any) => console.table(err)}
+              onNotAllowedOrFound={(err: Error) => console.table(err)}
             />
           </div>
           <div

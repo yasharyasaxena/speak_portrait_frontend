@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Loading from "@/app/loading";
 import { handleGetCompletedProjects } from "@/lib/api";
-import { IoMdDownload, IoMdPlay, IoMdPause, IoMdClose } from "react-icons/io";
+import { IoMdDownload, IoMdPlay, IoMdClose } from "react-icons/io";
 import { MdDateRange, MdVideoLibrary, MdInfo } from "react-icons/md";
 import { HiOutlineExternalLink } from "react-icons/hi";
 import Link from "next/link";
@@ -452,8 +452,8 @@ export default function Dashboard() {
                 No Videos Yet
               </h2>
               <p className="text-gray-600 mb-6">
-                You haven't completed any video projects yet. Start creating
-                your first AI portrait video!
+                You haven&apos;t completed any video projects yet. Start
+                creating your first AI portrait video!
               </p>
               <Link
                 href="/user/generate"

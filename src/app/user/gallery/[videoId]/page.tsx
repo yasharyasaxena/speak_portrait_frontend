@@ -1,14 +1,17 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Loading from "@/app/loading";
-import { getProjectById, updateProjectName, handleGetVideoUrl } from "@/lib/api";
+import {
+  getProjectById,
+  updateProjectName,
+  handleGetVideoUrl,
+} from "@/lib/api";
 import { generateVideoS3Url } from "@/lib/utils";
 import {
   IoMdDownload,
   IoMdPlay,
-  IoMdPause,
   IoMdSave,
   IoMdClose,
   IoMdArrowBack,
@@ -46,10 +49,14 @@ interface MediaItemProps {
   processedUrl?: string;
 }
 
-const MediaItem: React.FC<MediaItemProps> = ({ media, projectName, processedUrl }) => {
+const MediaItem: React.FC<MediaItemProps> = ({
+  media,
+  projectName,
+  processedUrl,
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  
+
   // Use processed URL if available, otherwise fall back to original URL
   const actualUrl = processedUrl || media.url;
 
@@ -121,7 +128,6 @@ const MediaItem: React.FC<MediaItemProps> = ({ media, projectName, processedUrl 
             </div>
           </div>
         )}
-        
         {media.fileType === "AUDIO" && (
           <div className="flex items-center justify-center h-full bg-gradient-to-br from-green-100 to-green-200">
             <div className="text-center">
@@ -136,7 +142,6 @@ const MediaItem: React.FC<MediaItemProps> = ({ media, projectName, processedUrl 
             </div>
           </div>
         )}
-
         {media.fileType === "VIDEO" && (
           <div className="relative w-full h-full">
             <video
@@ -158,7 +163,8 @@ const MediaItem: React.FC<MediaItemProps> = ({ media, projectName, processedUrl 
               <IoMdPlay className="text-white text-4xl" />
             </div>
           </div>
-        )}        {/* File type badge */}
+        )}{" "}
+        {/* File type badge */}
         <div className="absolute top-3 right-3">
           <span
             className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getMediaTypeColor()}`}
@@ -270,40 +276,52 @@ export default function ProjectDetailsPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [isUpdatingName, setIsUpdatingName] = useState(false);
-  const [processedMediaUrls, setProcessedMediaUrls] = useState<{ [key: string]: string }>({});
+  const [processedMediaUrls, setProcessedMediaUrls] = useState<{
+    [key: string]: string;
+  }>({});
 
   const projectId = params.videoId as string;
 
-  const processMediaUrls = async (project: Project) => {
-    const urlMap: { [key: string]: string } = {};
-    
-    for (const media of project.media) {
-      if (media.fileType === "VIDEO") {
-        try {
-          // Try to get a signed URL from the API
-          console.log("Getting signed URL for video:", media.fileName);
-          const videoResponse = await handleGetVideoUrl(currentUser!, project.id);
-          if (videoResponse && videoResponse.url) {
-            urlMap[media.id] = videoResponse.url;
-            console.log("Got signed URL:", videoResponse.url);
-          } else {
-            // Fallback to generating S3 URL
-            console.log("Generating S3 URL for:", media.fileName);
-            urlMap[media.id] = generateVideoS3Url(currentUser!.uid, project.id, media.fileName);
+  const processMediaUrls = useCallback(
+    async (project: Project) => {
+      const urlMap: { [key: string]: string } = {};
+
+      for (const media of project.media) {
+        if (media.fileType === "VIDEO") {
+          try {
+            // Try to get a signed URL from the API
+            console.log("Getting signed URL for video:", media.fileName);
+            const videoResponse = await handleGetVideoUrl(
+              currentUser!,
+              project.id
+            );
+            if (videoResponse && videoResponse.url) {
+              urlMap[media.id] = videoResponse.url;
+              console.log("Got signed URL:", videoResponse.url);
+            } else {
+              // Fallback to generating S3 URL
+              console.log("Generating S3 URL for:", media.fileName);
+              urlMap[media.id] = generateVideoS3Url(
+                currentUser!.uid,
+                project.id,
+                media.fileName
+              );
+            }
+          } catch (error) {
+            console.error("Error getting video URL for", media.fileName, error);
+            // Use the original URL as fallback
+            urlMap[media.id] = media.url;
           }
-        } catch (error) {
-          console.error("Error getting video URL for", media.fileName, error);
-          // Use the original URL as fallback
+        } else {
+          // For non-video files, use the original URL
           urlMap[media.id] = media.url;
         }
-      } else {
-        // For non-video files, use the original URL
-        urlMap[media.id] = media.url;
       }
-    }
-    
-    setProcessedMediaUrls(urlMap);
-  };
+
+      setProcessedMediaUrls(urlMap);
+    },
+    [currentUser]
+  ); // Only depend on currentUser since it's used inside the function
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -313,12 +331,18 @@ export default function ProjectDetailsPage() {
           setError(null);
           const projectData = await getProjectById(currentUser, projectId);
           console.log("Project data:", projectData);
-          console.log("Project media URLs:", projectData.media?.map((m: any) => ({ type: m.fileType, url: m.url })));
+          console.log(
+            "Project media URLs:",
+            projectData.media?.map((m: any) => ({
+              type: m.fileType,
+              url: m.url,
+            }))
+          );
           setProject(projectData);
           setNewProjectName(
             projectData.name || `Project ${projectData.id.slice(0, 8)}`
           );
-          
+
           // Process media URLs to get proper signed URLs for videos
           await processMediaUrls(projectData);
         } catch (error) {
@@ -331,7 +355,7 @@ export default function ProjectDetailsPage() {
     };
 
     fetchProject();
-  }, [currentUser, projectId]);
+  }, [currentUser, projectId, processMediaUrls]);
 
   const handleUpdateProjectName = async () => {
     if (!currentUser || !project || !newProjectName.trim()) return;
@@ -594,7 +618,7 @@ export default function ProjectDetailsPage() {
                 No Assets Found
               </h3>
               <p className="text-gray-600">
-                This project doesn't have any media files yet.
+                This project doesn&apos;t have any media files yet.
               </p>
             </div>
           ) : (

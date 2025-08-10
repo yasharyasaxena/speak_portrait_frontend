@@ -28,7 +28,7 @@ export default function UserLayout({
     } else {
       setIsLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   useEffect(() => {
     const fetchProjects = async () => {
