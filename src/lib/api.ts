@@ -394,6 +394,54 @@ export const handleGetCompletedProjects = async (user: User) => {
   }
 };
 
+export const getProjectById = async (user: User, projectId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/${projectId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch project", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching project:", error);
+    throw error;
+  }
+};
+
+export const updateProjectName = async (
+  user: User,
+  projectId: string,
+  newName: string
+) => {
+  try {
+    const response = await fetch(`${API_URL}/projects/${projectId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to update project name", {
+        cause: response.statusText,
+      });
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error updating project name:", error);
+    throw error;
+  }
+};
+
 export const handleAgeTransformationWebSocket = async ({
   imageUrl,
   targetAge,

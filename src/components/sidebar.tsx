@@ -3,7 +3,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { IoIosArrowDown } from "react-icons/io";
 
-export default function Sidebar({ videos }: { videos: string[] }) {
+interface Project {
+  id: string;
+  name: string;
+}
+
+export default function Sidebar({ projects }: { projects: Project[] }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="w-64 h-full bg-gray-800 text-white flex flex-col">
@@ -52,23 +57,21 @@ export default function Sidebar({ videos }: { videos: string[] }) {
               >
                 <ul className="pl-4 space-y-1 relative">
                   <div className="absolute left-0 w-px h-full bg-gray-600 ml-2"></div>
-                  <li>
-                    <Link
-                      href="/user/gallery"
-                      className="block px-4 py-2 hover:bg-gray-700 rounded transition-colors duration-200 relative"
-                    >
-                      <div className="absolute -left-2 top-1/2 w-4 h-px bg-gray-600"></div>
-                      All Videos
-                    </Link>
-                  </li>
-                  {videos.map((video, index) => (
-                    <li key={index}>
+                  {projects.map((project) => (
+                    <li key={project.id}>
                       <Link
-                        href={`/user/gallery/${video}`}
+                        href={`/user/gallery/${project.id}`}
                         className="block px-4 py-2 hover:bg-gray-700 rounded transition-colors duration-200 relative"
                       >
                         <div className="absolute -left-2 top-1/2 w-4 h-px bg-gray-600"></div>
-                        {video}
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">
+                            {project.name || `Project ${project.id.slice(0, 8)}`}
+                          </span>
+                          <span className="text-xs text-gray-400 font-mono">
+                            ID: {project.id.slice(0, 8)}...
+                          </span>
+                        </div>
                       </Link>
                     </li>
                   ))}
