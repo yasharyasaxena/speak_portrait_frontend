@@ -1,6 +1,12 @@
 import { TTSOptions, ttsStatus, videoStatus } from "@/types/types";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { User } from "firebase/auth";
+import {
+  handleCopyToKey,
+  handleDeleteFromKey,
+  handleProjectComplete,
+} from "./api";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -58,4 +64,67 @@ export const getVideoStatusIcon = (videoStatus: videoStatus) => {
     default:
       return "⏳";
   }
+};
+
+/**
+ * Handles the complete video post-processing workflow:
+ * 1. Copies the generated video to user-specific S3 location
+ * 2. Deletes the temporary video file
+ * 3. Marks the project as complete
+ *
+ * @param user - The authenticated user
+ * @param projectId - The project ID
+ * @param videoResponse - The video generation response containing the video name
+ * @returns The final video URL or throws an error
+ */
+export const handleVideoPostProcessing = async (
+  user: User,
+  projectId: string,
+  videoResponse: { name: string }
+) => {
+  try {
+    // Copy video to user-specific location
+    const copyResponse = await handleCopyToKey(
+      user,
+      videoResponse.name,
+      `${user.uid}/${projectId}/video/${videoResponse.name}`
+    );
+
+    // Delete temporary video file
+    const deleteResponse = await handleDeleteFromKey(videoResponse.name, user);
+
+    // Construct the final video URL
+    const finalVideoUrl = `https://speak-portrait.s3.ap-south-1.amazonaws.com/${user.uid}/${projectId}/video/${videoResponse.name}`;
+
+    console.log("Final video URL:", finalVideoUrl);
+
+    // Mark project as complete
+    await handleProjectComplete(
+      user,
+      projectId,
+      finalVideoUrl,
+      videoResponse.name
+    );
+
+    return finalVideoUrl;
+  } catch (error) {
+    console.error("Error in video post-processing:", error);
+    throw new Error("Failed to complete video post-processing workflow");
+  }
+};
+
+/**
+ * Generates the S3 URL for a video file
+ *
+ * @param userId - The user ID
+ * @param projectId - The project ID
+ * @param videoName - The video file name
+ * @returns The S3 URL for the video
+ */
+export const generateVideoS3Url = (
+  userId: string,
+  projectId: string,
+  videoName: string
+): string => {
+  return `https://speak-portrait.s3.ap-south-1.amazonaws.com/${userId}/${projectId}/video/${videoName}`;
 };

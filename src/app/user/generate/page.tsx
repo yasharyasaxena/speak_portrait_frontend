@@ -24,18 +24,14 @@ import {
   defaultTTSOptions,
   getTTSStatusIcon,
   getVideoStatusIcon,
+  handleVideoPostProcessing,
 } from "@/lib/utils";
 import {
   handleSingleUpload,
   handleOnTTSWebSocket,
   handleVideoGeneration,
   getActiveProject,
-  getObjectsInProject,
   deleteObjectsInProject,
-  handleCopyToKey,
-  handleDeleteFromKey,
-  handleGetVideoUrl,
-  handleProjectComplete,
 } from "@/lib/api";
 import AgeTransformation from "@/components/AgeTransformation";
 import BackgroundReplacement from "@/components/BackgroundReplacement";
@@ -858,6 +854,7 @@ export default function GeneratePage() {
                 try {
                   setVideoStatus("processing");
                   setVideoMessage("Generating video...");
+                  const startTime = performance.now();
                   startVideoTimer();
 
                   const videoResponse = await handleVideoGeneration({
@@ -868,34 +865,18 @@ export default function GeneratePage() {
                   });
 
                   console.log("Video generation response:", videoResponse);
-                  // const copyResponse = await handleCopyToKey(
-                  //   currentUser!,
-                  //   videoResponse.name,
-                  //   `${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
-                  // );
-                  // const deleteResponse = await handleDeleteFromKey(
-                  //   videoResponse.name,
-                  //   currentUser!
-                  // );
 
-                  // const url = `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`;
+                  const finalVideoUrl = await handleVideoPostProcessing(
+                    currentUser!,
+                    projectId,
+                    videoResponse
+                  );
 
-                  // console.log(
-                  //   "url:",
-                  //   `https://speak-portrait.s3.ap-south-1.amazonaws.com/${currentUser?.uid}/${projectId}/video/${videoResponse.name}`
-                  // );
-
-                  // await handleProjectComplete(
-                  //   currentUser!,
-                  //   projectId,
-                  //   url,
-                  //   videoResponse.name
-                  // );
-
+                  const stopTime = performance.now();
                   stopVideoTimer();
-                  const finalElapsedTime = videoElapsedTime;
+                  const finalElapsedTime = stopTime - startTime;
                   if (videoResponse.name) {
-                    setVideoUrl(videoResponse.video_url);
+                    setVideoUrl(finalVideoUrl);
                     setVideoStatus("completed");
                     setVideoMessage(
                       `Video generated successfully in ${finalElapsedTime.toFixed(
