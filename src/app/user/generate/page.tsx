@@ -204,12 +204,16 @@ export default function GeneratePage() {
     setTtsMessage(data.message || "");
 
     if (data.processingTime) {
-      setProcessingTime({ total: data.processingTime });
+      setProcessingTime({
+        total:
+          typeof data.processingTime === "number" ? data.processingTime : 0,
+      });
     }
     if (data.generationTime) {
       setProcessingTime((prev: ProcessingTime | null) => ({
         ...prev,
-        generation: data.generationTime,
+        generation:
+          typeof data.generationTime === "number" ? data.generationTime : 0,
       }));
     }
   };
@@ -584,30 +588,33 @@ export default function GeneratePage() {
                 )}
                 {processingTime && (
                   <div className="grid grid-cols-3 gap-2 text-xs">
-                    {processingTime.generation && (
-                      <div className="text-center">
-                        <div className="font-bold text-blue-600">
-                          {processingTime.generation.toFixed(2)}s
+                    {processingTime.generation &&
+                      typeof processingTime.generation === "number" && (
+                        <div className="text-center">
+                          <div className="font-bold text-blue-600">
+                            {processingTime.generation.toFixed(2)}s
+                          </div>
+                          <div className="text-gray-600">Generation</div>
                         </div>
-                        <div className="text-gray-600">Generation</div>
-                      </div>
-                    )}
-                    {processingTime.upload && (
-                      <div className="text-center">
-                        <div className="font-bold text-yellow-600">
-                          {processingTime.upload.toFixed(2)}s
+                      )}
+                    {processingTime.upload &&
+                      typeof processingTime.upload === "number" && (
+                        <div className="text-center">
+                          <div className="font-bold text-yellow-600">
+                            {processingTime.upload.toFixed(2)}s
+                          </div>
+                          <div className="text-gray-600">Upload</div>
                         </div>
-                        <div className="text-gray-600">Upload</div>
-                      </div>
-                    )}
-                    {processingTime.total && (
-                      <div className="text-center">
-                        <div className="font-bold text-green-600">
-                          {processingTime.total.toFixed(2)}s
+                      )}
+                    {processingTime.total &&
+                      typeof processingTime.total === "number" && (
+                        <div className="text-center">
+                          <div className="font-bold text-green-600">
+                            {processingTime.total.toFixed(2)}s
+                          </div>
+                          <div className="text-gray-600">Total</div>
                         </div>
-                        <div className="text-gray-600">Total</div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 )}
               </div>
