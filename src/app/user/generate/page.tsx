@@ -40,6 +40,7 @@ export default function GeneratePage() {
   //User
   const { currentUser, isAuthenticated, loading } = useAuth();
   const [projectId, setProjectId] = useState<string>();
+  const [projectLoading, setProjectLoading] = useState<boolean>(false);
   const uploadContainerRef = useRef(null);
 
   //Image
@@ -77,13 +78,6 @@ export default function GeneratePage() {
   const [showBackgroundReplacement, setShowBackgroundReplacement] =
     useState<boolean>(false);
 
-  if (loading)
-    return (
-      <div>
-        <Loading />
-      </div>
-    );
-
   const {
     wavesurfer: uploadWavesurfer,
     isPlaying: uploadIsPlaying,
@@ -117,6 +111,58 @@ export default function GeneratePage() {
   const onTtsPlayPause = useCallback(() => {
     ttsWavesurfer && ttsWavesurfer.playPause();
   }, [ttsWavesurfer]);
+
+  // Cleanup timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (videoTimerRef.current) {
+        clearInterval(videoTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (currentUser && !loading) {
+        setProjectLoading(true);
+        try {
+          const project =
+            (await getActiveProject(currentUser)) instanceof Array
+              ? (await getActiveProject(currentUser))[0]
+              : await getActiveProject(currentUser);
+          console.log("Active project:", project);
+          if (project) {
+            const media = project.media;
+            for (const item of media) {
+              if (item.fileType === "IMAGE") {
+                setImageUrl(item.url);
+                setImageFile(new File([], item.fileName));
+              } else if (item.fileType === "AUDIO") {
+                setAudioUrl(item.url);
+                setAudioFile(new File([], item.fileName));
+                setAudio("File");
+              } else if (item.fileType === "VIDEO") {
+                setVideoUrl(item.url);
+              }
+            }
+          }
+          setProjectId(project?.id);
+        } catch (error) {
+          console.error("Error fetching active project:", error);
+        } finally {
+          setProjectLoading(false);
+        }
+      }
+    };
+    fetchProject();
+  }, [currentUser, loading]);
+
+  if (loading || projectLoading)
+    return (
+      <div>
+        <Loading />
+      </div>
+    );
 
   const handleAudioReset = async () => {
     setAudioUrl(null);
@@ -190,48 +236,6 @@ export default function GeneratePage() {
       setShowBackgroundReplacement(true);
     }
   };
-
-  // Cleanup timer on component unmount
-  useEffect(() => {
-    return () => {
-      if (videoTimerRef.current) {
-        clearInterval(videoTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchProject = async () => {
-      if (currentUser) {
-        try {
-          const project =
-            (await getActiveProject(currentUser)) instanceof Array
-              ? (await getActiveProject(currentUser))[0]
-              : await getActiveProject(currentUser);
-          console.log("Active project:", project);
-          if (project) {
-            const media = project.media;
-            for (const item of media) {
-              if (item.fileType === "IMAGE") {
-                setImageUrl(item.url);
-                setImageFile(new File([], item.fileName));
-              } else if (item.fileType === "AUDIO") {
-                setAudioUrl(item.url);
-                setAudioFile(new File([], item.fileName));
-                setAudio("File");
-              } else if (item.fileType === "VIDEO") {
-                setVideoUrl(item.url);
-              }
-            }
-          }
-          setProjectId(project?.id);
-        } catch (error) {
-          console.error("Error fetching active project:", error);
-        }
-      }
-    };
-    fetchProject();
-  }, [currentUser]);
 
   return (
     <div>
