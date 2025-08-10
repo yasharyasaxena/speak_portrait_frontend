@@ -31,8 +31,11 @@ interface ProcessingTime {
 interface TTSStatusData {
   status: ttsStatus;
   message?: string;
-  processingTime?: number;
-  generationTime?: number;
+  processingTime?: {
+    generation?: number;
+    upload?: number;
+    total?: number;
+  };
 }
 import {
   defaultTTSOptions,
@@ -200,20 +203,25 @@ export default function GeneratePage() {
   };
 
   const handleTTSStatusUpdate = (data: TTSStatusData) => {
+    console.log("TTS Status Update:", data);
     setTtsStatus(data.status);
     setTtsMessage(data.message || "");
 
-    if (data.processingTime) {
+    if (data.processingTime?.total) {
       setProcessingTime({
         total:
-          typeof data.processingTime === "number" ? data.processingTime : 0,
+          typeof data.processingTime?.total === "number"
+            ? data.processingTime.total
+            : 0,
       });
     }
-    if (data.generationTime) {
+    if (data.processingTime?.generation) {
       setProcessingTime((prev: ProcessingTime | null) => ({
         ...prev,
         generation:
-          typeof data.generationTime === "number" ? data.generationTime : 0,
+          typeof data.processingTime?.generation === "number"
+            ? data.processingTime.generation
+            : 0,
       }));
     }
   };
@@ -553,7 +561,7 @@ export default function GeneratePage() {
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
                     <span>{uploadIsPlaying ? "Playing" : "Paused"}</span>
-                    <span>{uploadCurrentTime.toFixed(2)}s</span>
+                    <span>{Number(uploadCurrentTime || 0).toFixed(2)}s</span>
                   </div>
                   <button
                     onClick={onUploadPlayPause}
@@ -592,7 +600,7 @@ export default function GeneratePage() {
                       typeof processingTime.generation === "number" && (
                         <div className="text-center">
                           <div className="font-bold text-blue-600">
-                            {processingTime.generation.toFixed(2)}s
+                            {Number(processingTime.generation || 0).toFixed(2)}s
                           </div>
                           <div className="text-gray-600">Generation</div>
                         </div>
@@ -601,7 +609,7 @@ export default function GeneratePage() {
                       typeof processingTime.upload === "number" && (
                         <div className="text-center">
                           <div className="font-bold text-yellow-600">
-                            {processingTime.upload.toFixed(2)}s
+                            {Number(processingTime.upload || 0).toFixed(2)}s
                           </div>
                           <div className="text-gray-600">Upload</div>
                         </div>
@@ -610,7 +618,7 @@ export default function GeneratePage() {
                       typeof processingTime.total === "number" && (
                         <div className="text-center">
                           <div className="font-bold text-green-600">
-                            {processingTime.total.toFixed(2)}s
+                            {Number(processingTime.total || 0).toFixed(2)}s
                           </div>
                           <div className="text-gray-600">Total</div>
                         </div>
@@ -691,7 +699,7 @@ export default function GeneratePage() {
                       {emotion}
                     </span>
                     <span className="text-xs text-gray-600 mb-2">
-                      {value.toFixed(4)}
+                      {Number(value || 0).toFixed(4)}
                     </span>
                     <Slider
                       defaultValue={[value * 100]}
@@ -779,7 +787,7 @@ export default function GeneratePage() {
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
                   <span>{ttsIsPlaying ? "Playing" : "Paused"}</span>
-                  <span>{ttsCurrentTime.toFixed(2)}s</span>
+                  <span>{Number(ttsCurrentTime || 0).toFixed(2)}s</span>
                 </div>
                 <button
                   onClick={onTtsPlayPause}
@@ -838,7 +846,7 @@ export default function GeneratePage() {
                   <div className="ml-auto flex items-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     <span className="text-sm font-mono text-blue-700">
-                      {videoElapsedTime.toFixed(1)}s
+                      {Number(videoElapsedTime || 0).toFixed(1)}s
                     </span>
                   </div>
                 )}
@@ -910,9 +918,9 @@ export default function GeneratePage() {
                     setVideoUrl(finalVideoUrl);
                     setVideoStatus("completed");
                     setVideoMessage(
-                      `Video generated successfully in ${finalElapsedTime.toFixed(
-                        1
-                      )}s!`
+                      `Video generated successfully in ${Number(
+                        finalElapsedTime || 0
+                      ).toFixed(1)}s!`
                     );
                   } else {
                     throw new Error("No video file name returned from API");
@@ -924,9 +932,9 @@ export default function GeneratePage() {
                   stopVideoTimer();
                   setVideoStatus("error");
                   setVideoMessage(
-                    `Video generation failed after ${finalElapsedTime.toFixed(
-                      1
-                    )}s`
+                    `Video generation failed after ${Number(
+                      finalElapsedTime || 0
+                    ).toFixed(1)}s`
                   );
                   console.error("Error generating video:", error);
                 }
