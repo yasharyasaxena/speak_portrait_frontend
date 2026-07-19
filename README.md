@@ -4,7 +4,9 @@ A Next.js-based AI-powered video generation platform that transforms static imag
 
 ## 🎥 Demo
 
-[Watch the demo video](https://drive.google.com/file/d/1fXl29KDZIHvmm6dDDBk8NPGIEE4-6Cy6/view?usp=sharing)
+[![Watch Demo](https://img.shields.io/badge/▶-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://youtu.be/OmOL3CW14cY)
+
+[![Demo Video](https://img.youtube.com/vi/OmOL3CW14cY/hqdefault.jpg)](https://youtu.be/OmOL3CW14cY)
 
 ## 🌟 Features
 
