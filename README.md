@@ -2,6 +2,10 @@
 
 A Next.js-based AI-powered video generation platform that transforms static images into talking portraits with advanced AI features including age transformation and background replacement.
 
+## 🎥 Demo
+
+[Watch the demo video](https://drive.google.com/file/d/1fXl29KDZIHvmm6dDDBk8NPGIEE4-6Cy6/view?usp=sharing)
+
 ## 🌟 Features
 
 - **📸 Image Upload & Processing**: Upload portrait images for video generation
